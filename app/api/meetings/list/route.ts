@@ -1,20 +1,16 @@
-import { NextRequest } from "next/server";
-import { badRequest, toErrorResponse } from "@/lib/errors";
+import { toErrorResponse } from "@/lib/errors";
 import { createSupabaseServiceRoleClient } from "@/lib/supabaseServer";
+import { requireUser } from "@/lib/auth";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const hostId = request.nextUrl.searchParams.get("hostId");
-
-    if (!hostId) {
-      throw badRequest("hostId is required");
-    }
+    const user = await requireUser();
 
     const supabase = createSupabaseServiceRoleClient();
     const { data, error } = await supabase
       .from("meetings")
       .select("*")
-      .eq("host_id", hostId)
+      .eq("host_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) {

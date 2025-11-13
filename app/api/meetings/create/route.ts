@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { badRequest, toErrorResponse } from "@/lib/errors";
 import { createSupabaseServiceRoleClient } from "@/lib/supabaseServer";
+import { requireUser } from "@/lib/auth";
 
 type CreateMeetingPayload = {
-  hostId: string;
   title: string;
   description?: string;
   scheduledFor?: string;
@@ -12,9 +12,10 @@ type CreateMeetingPayload = {
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as Partial<CreateMeetingPayload>;
+    const user = await requireUser();
 
-    if (!payload.hostId || !payload.title) {
-      throw badRequest("hostId and title are required");
+    if (!payload.title) {
+      throw badRequest("title is required");
     }
 
     const supabase = createSupabaseServiceRoleClient();
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from("meetings")
       .insert({
-        host_id: payload.hostId,
+        host_id: user.id,
         title: payload.title,
         description: payload.description ?? null,
         scheduled_for: payload.scheduledFor ? new Date(payload.scheduledFor).toISOString() : null,

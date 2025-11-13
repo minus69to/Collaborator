@@ -1,7 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
-import { getPublicEnv } from "./validateEnv";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } = getPublicEnv();
-
-export const supabaseBrowserClient = createClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY);
+export function createSupabaseBrowserClient(): SupabaseClient {
+  return createClientComponentClient();
+}
 
