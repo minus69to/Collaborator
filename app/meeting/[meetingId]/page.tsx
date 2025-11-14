@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import type { FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import {
@@ -360,6 +361,7 @@ function MeetingRoom() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
+  const [displayName, setDisplayName] = useState("");
 
   useEffect(() => {
     async function fetchMeeting() {
@@ -382,8 +384,16 @@ function MeetingRoom() {
     }
   }, [meetingId]);
 
-  async function handleJoin() {
+  async function handleJoin(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    
     if (!meeting?.hms_room_id || !user) return;
+
+    // Validate display name
+    if (!displayName.trim()) {
+      setError("Please enter your name to join the meeting");
+      return;
+    }
 
     setJoining(true);
     setError(null);
@@ -409,9 +419,9 @@ function MeetingRoom() {
         throw new Error("No token received from server");
       }
 
-      // Join the 100ms room
+      // Join the 100ms room with the display name
       await hmsActions.join({
-        userName: user.email || "User",
+        userName: displayName.trim(),
         authToken: token,
       });
 
@@ -483,6 +493,15 @@ function MeetingRoom() {
     }
   }, [isConnected]);
 
+  // Set default display name from user email if not set
+  useEffect(() => {
+    if (user?.email && !displayName && !isConnected) {
+      // Extract name from email (part before @) or use email as fallback
+      const emailName = user.email.split("@")[0];
+      setDisplayName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
+    }
+  }, [user?.email, displayName, isConnected]);
+
   async function handleLeave() {
     await hmsActions.leave();
     router.push("/meetings");
@@ -516,16 +535,43 @@ function MeetingRoom() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 py-16 text-slate-100">
         <div className="w-full max-w-md space-y-6 rounded-xl border border-slate-800 bg-slate-900/70 p-8">
-          <h1 className="text-2xl font-semibold">{meeting.title}</h1>
-          {meeting.description && <p className="text-sm text-slate-300">{meeting.description}</p>}
-          <button
-            onClick={handleJoin}
-            disabled={joining}
-            className="w-full rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:opacity-60"
-          >
-            {joining ? "Joining..." : "Join Meeting"}
-          </button>
-          {error && <p className="text-sm text-rose-300">{error}</p>}
+          <div className="text-center">
+            <h1 className="text-2xl font-semibold">{meeting.title}</h1>
+            {meeting.description && (
+              <p className="mt-2 text-sm text-slate-300">{meeting.description}</p>
+            )}
+          </div>
+          
+          <form onSubmit={handleJoin} className="space-y-4">
+            <div>
+              <label htmlFor="displayName" className="block text-sm font-medium text-slate-200 mb-2">
+                Your Name
+              </label>
+              <input
+                id="displayName"
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Enter your name"
+                className="w-full rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-600"
+                disabled={joining}
+                autoFocus
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                This name will be displayed in the meeting
+              </p>
+            </div>
+            
+            <button
+              type="submit"
+              disabled={joining || !displayName.trim()}
+              className="w-full rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {joining ? "Joining..." : "Join Meeting"}
+            </button>
+            
+            {error && <p className="text-sm text-rose-300 text-center">{error}</p>}
+          </form>
         </div>
       </div>
     );
