@@ -18,11 +18,62 @@ import {
   selectTracksMap,
 } from "@100mslive/react-sdk";
 
+// Helper function to get initials from name/email
+function getInitials(name: string): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/[\s@]/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase().slice(0, 2);
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+// Helper function to get a color based on name (for avatar)
+function getAvatarColor(name: string): string {
+  const colors = [
+    "bg-blue-500",
+    "bg-green-500",
+    "bg-purple-500",
+    "bg-pink-500",
+    "bg-yellow-500",
+    "bg-indigo-500",
+    "bg-red-500",
+    "bg-teal-500",
+    "bg-orange-500",
+    "bg-cyan-500",
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
 // Component to render a single video tile
-function VideoTile({ track, peer, localPeerId }: { track: any; peer: any; localPeerId?: string }) {
+function VideoTile({
+  track,
+  peer,
+  localPeerId,
+  isHost,
+  audioTrack,
+}: {
+  track: any;
+  peer: any;
+  localPeerId?: string;
+  isHost?: boolean;
+  audioTrack?: any;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hmsActions = useHMSActions();
   const isLocal = peer?.id === localPeerId;
+  
+  // Get audio track enabled status
+  const isAudioEnabled = audioTrack?.enabled ?? false;
+  const isVideoEnabled = track?.enabled ?? false;
+  
+  const peerName = peer?.name || "Unknown";
+  const initials = getInitials(peerName);
+  const avatarColor = getAvatarColor(peerName);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -93,22 +144,84 @@ function VideoTile({ track, peer, localPeerId }: { track: any; peer: any; localP
         muted={isLocal}
         className={`h-full w-full object-cover ${!track || !track.enabled ? "hidden" : ""}`}
       />
+      
+      {/* Avatar/Placeholder when video is off */}
       {(!track || !track.enabled) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-          <div className="text-center">
-            <div className="mb-2 text-4xl">👤</div>
-            <p className="text-sm text-slate-400">{peer?.name || "Unknown"}</p>
-            {isLocal && <p className="mt-1 text-xs text-slate-500">(You)</p>}
-            <p className="mt-1 text-xs text-slate-500">
-              {peer?.audioTrack?.enabled ? "🎤" : "🔇"}
-            </p>
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+          <div className="flex flex-col items-center justify-center">
+            {/* Avatar Circle */}
+            <div className={`${avatarColor} mb-3 flex h-20 w-20 items-center justify-center rounded-full text-2xl font-semibold text-white shadow-lg`}>
+              {initials}
+            </div>
+            <p className="text-sm font-medium text-slate-200">{peerName}</p>
+            {isLocal && (
+              <p className="mt-1 text-xs text-slate-400">(You)</p>
+            )}
           </div>
         </div>
       )}
-      <div className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-xs z-10">
-        {peer?.name || "Unknown"}
-        {isLocal && " (You)"}
-        <span className="ml-1">{peer?.audioTrack?.enabled ? "🎤" : "🔇"}</span>
+
+      {/* Bottom overlay with name, host badge, and status icons */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/60 to-transparent p-3 z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {/* Name */}
+            <span className="text-sm font-medium text-white truncate max-w-[200px]">
+              {peerName}
+            </span>
+            {/* Host Badge */}
+            {isHost && (
+              <span className="flex items-center gap-1 rounded-full bg-yellow-500/90 px-2 py-0.5 text-xs font-semibold text-black">
+                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                Host
+              </span>
+            )}
+            {/* Local badge */}
+            {isLocal && !isHost && (
+              <span className="text-xs text-slate-300">(You)</span>
+            )}
+          </div>
+          
+          {/* Status Icons */}
+          <div className="flex items-center gap-2">
+            {/* Mic Icon */}
+            <div className={`flex items-center justify-center rounded-full p-1.5 ${
+              isAudioEnabled 
+                ? "bg-green-500/20 text-green-400" 
+                : "bg-red-500/20 text-red-400"
+            }`}>
+              {isAudioEnabled ? (
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                </svg>
+              )}
+            </div>
+            
+            {/* Camera Icon */}
+            <div className={`flex items-center justify-center rounded-full p-1.5 ${
+              isVideoEnabled 
+                ? "bg-green-500/20 text-green-400" 
+                : "bg-red-500/20 text-red-400"
+            }`}>
+              {isVideoEnabled ? (
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                </svg>
+              ) : (
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                </svg>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
@@ -237,7 +350,13 @@ function MeetingRoom() {
     }
   };
 
-  const [meeting, setMeeting] = useState<{ id: string; title: string; description?: string | null; hms_room_id?: string | null } | null>(null);
+  const [meeting, setMeeting] = useState<{ 
+    id: string; 
+    title: string; 
+    description?: string | null; 
+    hms_room_id?: string | null;
+    host_id?: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
@@ -438,10 +557,13 @@ function MeetingRoom() {
               // peer.videoTrack is a STRING (track ID), not the track object!
               // We need to look it up in the tracks map
               let videoTrack: any = null;
+              let audioTrack: any = null;
               
               // Check if peer.videoTrack is a string (track ID) or an object
               const videoTrackRef = peer.videoTrack;
+              const audioTrackRef = peer.audioTrack;
               
+              // Get video track
               if (videoTrackRef) {
                 if (typeof videoTrackRef === "string") {
                   // It's a track ID string - look it up in tracks map
@@ -478,12 +600,55 @@ function MeetingRoom() {
                 }
               }
               
+              // Get audio track
+              if (audioTrackRef) {
+                if (typeof audioTrackRef === "string") {
+                  // It's a track ID string - look it up in tracks map
+                  audioTrack = tracksMap?.[audioTrackRef];
+                } else {
+                  // It's already a track object
+                  audioTrack = audioTrackRef;
+                }
+              }
+              
+              // Fallback: Try localAudioTrackID for local peer
+              if (!audioTrack && peer.id === localPeer?.id && localAudioTrackID) {
+                audioTrack = tracksMap?.[localAudioTrackID];
+              }
+              
+              // Fallback: Search all tracks for this peer
+              if (!audioTrack && tracksMap) {
+                const allTracks = Object.values(tracksMap);
+                const peerTracks = allTracks.filter((track: any) => {
+                  // Check if track belongs to this peer
+                  return (track.peerId === peer.id || track.peer?.id === peer.id) && track.type === "audio";
+                });
+                if (peerTracks.length > 0) {
+                  audioTrack = peerTracks[0] as any;
+                }
+              }
+              
+              // Check if this peer is the host
+              // For local peer: compare user ID with meeting host_id
+              const isLocalHost = peer.id === localPeer?.id && user?.id === meeting.host_id;
+              
+              // For remote peers: we can't reliably determine host status from HMS alone
+              // But we can show host badge for local peer when they are the host
+              // Note: To properly show host status for all peers, we'd need to store/compare Supabase user IDs
+              const isHost = isLocalHost;
+              
               return (
                 <div
                   key={peer.id}
-                  className="relative flex aspect-video items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900"
+                  className="relative flex aspect-video items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-lg"
                 >
-                  <VideoTile track={videoTrack} peer={peer} localPeerId={localPeer?.id} />
+                  <VideoTile 
+                    track={videoTrack} 
+                    peer={peer} 
+                    localPeerId={localPeer?.id}
+                    isHost={isHost}
+                    audioTrack={audioTrack}
+                  />
                 </div>
               );
             })}
