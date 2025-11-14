@@ -9,6 +9,7 @@ type Meeting = {
   title: string;
   status: string;
   created_at: string;
+  hms_room_id?: string | null;
 };
 
 export default function MeetingsPage() {
@@ -180,9 +181,24 @@ export default function MeetingsPage() {
             key={meeting.id}
             className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 shadow shadow-slate-950/40"
           >
-            <h2 className="text-lg font-semibold text-white">{meeting.title}</h2>
-            <p className="text-sm text-slate-300">Status: {meeting.status}</p>
-            <p className="text-xs text-slate-500">Created: {new Date(meeting.created_at).toLocaleString()}</p>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h2 className="text-lg font-semibold text-white">{meeting.title}</h2>
+                <p className="text-sm text-slate-300">Status: {meeting.status}</p>
+                <p className="text-xs text-slate-500">Created: {new Date(meeting.created_at).toLocaleString()}</p>
+                {meeting.hms_room_id && (
+                  <p className="mt-2 text-xs text-slate-400">Room ID: {meeting.hms_room_id.substring(0, 12)}...</p>
+                )}
+              </div>
+              {meeting.hms_room_id && (
+                <Link
+                  href={`/meeting/${meeting.id}`}
+                  className="ml-4 rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400"
+                >
+                  Join Meeting
+                </Link>
+              )}
+            </div>
           </article>
         ))}
       </section>
