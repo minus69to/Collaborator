@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 
 type Meeting = {
@@ -13,14 +14,17 @@ type Meeting = {
 };
 
 export default function MeetingsPage() {
+  const router = useRouter();
   const { status, user } = useUser();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [meetingIdToJoin, setMeetingIdToJoin] = useState("");
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -97,6 +101,72 @@ export default function MeetingsPage() {
     }
   }
 
+  async function joinMeetingById(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    const trimmedId = meetingIdToJoin.trim();
+    
+    if (!trimmedId) {
+      setError("Meeting ID is required.");
+      return;
+    }
+
+    // Basic validation: Meeting IDs are UUIDs (36 characters with dashes)
+    // Allow some flexibility but check for basic format
+    if (trimmedId.length < 10) {
+      setError("Invalid meeting ID format. Meeting IDs are typically longer.");
+      return;
+    }
+
+    setIsJoining(true);
+    try {
+      // First, verify the meeting exists and user can access it
+      const response = await fetch(`/api/meetings/get?meetingId=${encodeURIComponent(trimmedId)}`);
+      
+      if (!response.ok) {
+        let errorMessage = "Meeting not found or you don't have access";
+        
+        // Try to parse error message from response
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const payload = await response.json();
+            errorMessage = payload.error || payload.message || errorMessage;
+          } else {
+            // If not JSON, use status text
+            errorMessage = response.statusText || errorMessage;
+          }
+        } catch (parseError) {
+          // If parsing fails, use status-based messages
+          if (response.status === 404) {
+            errorMessage = "Meeting not found";
+          } else if (response.status === 400) {
+            errorMessage = "Invalid meeting ID";
+          } else if (response.status === 403) {
+            errorMessage = "You don't have permission to access this meeting";
+          } else if (response.status >= 500) {
+            errorMessage = "Server error. Please try again later";
+          }
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // If meeting exists, navigate to the meeting page
+      router.push(`/meeting/${trimmedId}`);
+    } catch (err) {
+      // Handle network errors and other exceptions
+      if (err instanceof TypeError && err.message === "Failed to fetch") {
+        setError("Network error. Please check your connection and try again.");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to join meeting");
+      }
+      setIsJoining(false);
+    }
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center gap-8 bg-slate-950 px-6 py-16 text-slate-100">
       <header className="text-center">
@@ -126,7 +196,7 @@ export default function MeetingsPage() {
       {status === "authenticated" && (
         <section className="grid w-full max-w-4xl gap-6 lg:grid-cols-2">
           <form onSubmit={createMeeting} className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-          <h2 className="text-lg font-semibold text-white">Create meeting</h2>
+            <h2 className="text-lg font-semibold text-white">Create meeting</h2>
             <label className="text-sm font-medium text-slate-200">
               Title
               <input
@@ -155,15 +225,25 @@ export default function MeetingsPage() {
             </button>
           </form>
 
-          <form onSubmit={fetchMeetings} className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-            <h2 className="text-lg font-semibold text-white">Load meetings</h2>
-            <p className="text-xs text-slate-400">We’ll pull everything linked to your account.</p>
+          <form onSubmit={joinMeetingById} className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+            <h2 className="text-lg font-semibold text-white">Join by Meeting ID</h2>
+            <p className="text-xs text-slate-400">Enter a meeting ID to join an existing meeting.</p>
+            <label className="text-sm font-medium text-slate-200">
+              Meeting ID
+              <input
+                type="text"
+                value={meetingIdToJoin}
+                onChange={(event) => setMeetingIdToJoin(event.target.value)}
+                placeholder="1dfc7cc9-744c-4054-be05-09d1d0c32139"
+                className="mt-2 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-600"
+              />
+            </label>
             <button
               type="submit"
               className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isLoading}
+              disabled={isJoining || !meetingIdToJoin.trim()}
             >
-              {isLoading ? "Loading…" : "Refresh list"}
+              {isJoining ? "Joining…" : "Join Meeting"}
             </button>
           </form>
         </section>

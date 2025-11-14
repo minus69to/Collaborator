@@ -22,7 +22,14 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (error) {
-      throw error;
+      // Supabase returns PGRST116 when no rows are found with .single()
+      // Also handle other potential errors
+      if (error.code === "PGRST116" || error.message?.includes("No rows")) {
+        throw badRequest("Meeting not found");
+      }
+      // If it's a PostgrestError, convert it to a proper error
+      console.error("Database error fetching meeting:", error);
+      throw badRequest(error.message || "Failed to fetch meeting");
     }
 
     if (!data) {
