@@ -362,6 +362,11 @@ function MeetingRoom() {
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const [displayName, setDisplayName] = useState("");
+  const [isWaitingForApproval, setIsWaitingForApproval] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [isHost, setIsHost] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [showHostPanel, setShowHostPanel] = useState(false);
 
   useEffect(() => {
     async function fetchMeeting() {
@@ -372,6 +377,10 @@ function MeetingRoom() {
         }
         const payload = await response.json();
         setMeeting(payload.meeting);
+        // Check if current user is the host
+        if (user && payload.meeting.host_id === user.id) {
+          setIsHost(true);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -379,10 +388,10 @@ function MeetingRoom() {
       }
     }
 
-    if (meetingId) {
+    if (meetingId && user) {
       fetchMeeting();
     }
-  }, [meetingId]);
+  }, [meetingId, user]);
 
   async function handleJoin(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -397,14 +406,59 @@ function MeetingRoom() {
 
     setJoining(true);
     setError(null);
+
     try {
-      // Get token from our API - use "broadcaster" role (matches your template)
+      // Check if user is host - if yes, join directly
+      if (isHost) {
+        await joinMeeting(displayName.trim(), "host");
+        return;
+      }
+
+      // If not host, create join request
+      const requestResponse = await fetch("/api/meetings/join-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          meetingId: meeting.id,
+          displayName: displayName.trim(),
+        }),
+      });
+
+      if (!requestResponse.ok) {
+        const errorData = await requestResponse.json();
+        throw new Error(errorData.error || "Failed to create join request");
+      }
+
+      const requestData = await requestResponse.json();
+
+      if (requestData.approved && requestData.canJoin) {
+        // Already approved, join directly
+        await joinMeeting(displayName.trim(), "participant");
+      } else {
+        // Waiting for approval - the useEffect will automatically start polling
+        setIsWaitingForApproval(true);
+        setRequestId(requestData.requestId);
+        setJoining(false);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to join meeting";
+      console.error("Join error:", err);
+      setError(errorMsg);
+      setJoining(false);
+    }
+  }
+
+  async function joinMeeting(name: string, role: "host" | "participant") {
+    if (!meeting?.hms_room_id) return;
+
+    try {
+      // Get token from our API
       const tokenResponse = await fetch("/api/100ms-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           roomId: meeting.hms_room_id,
-          role: "broadcaster", // Matches your 100ms template role
+          role: "broadcaster",
         }),
       });
 
@@ -421,17 +475,124 @@ function MeetingRoom() {
 
       // Join the 100ms room with the display name
       await hmsActions.join({
-        userName: displayName.trim(),
+        userName: name,
         authToken: token,
       });
 
-      // Tracks will be enabled in the useEffect when isConnected becomes true
-      // If join succeeds, setJoining(false) will be handled by isConnected state change
+      // Record participant - wait for it to complete to ensure it's saved
+      try {
+        const participantResponse = await fetch("/api/meetings/participants", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meetingId: meeting.id,
+            role,
+            displayName: name,
+          }),
+        });
+
+        if (!participantResponse.ok) {
+          const errorData = await participantResponse.json();
+          console.error("Failed to record participant:", errorData.error);
+          // Don't throw - we're already in the meeting, just log the error
+        }
+      } catch (err) {
+        console.error("Error recording participant:", err);
+        // Don't throw - we're already in the meeting
+      }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to join meeting";
-      console.error("Join error:", err);
-      setError(errorMsg);
-      setJoining(false);
+      throw err;
+    }
+  }
+
+  // Poll for approval when waiting
+  useEffect(() => {
+    if (!isWaitingForApproval || !requestId || !meeting?.id || isConnected) {
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        // Check join request status
+        const checkResponse = await fetch("/api/meetings/join-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meetingId: meeting.id,
+            displayName: displayName.trim(),
+          }),
+        });
+
+        if (checkResponse.ok) {
+          const data = await checkResponse.json();
+          
+          if (data.approved && data.canJoin) {
+            clearInterval(interval);
+            setIsWaitingForApproval(false);
+            setJoining(true);
+            await joinMeeting(displayName.trim(), "participant");
+          }
+        }
+      } catch (err) {
+        console.error("Error polling for approval:", err);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(interval);
+  }, [isWaitingForApproval, requestId, meeting?.id, displayName, isConnected]);
+
+  // Poll for pending requests when host is connected
+  useEffect(() => {
+    if (!isHost || !isConnected || !meeting?.id) {
+      return;
+    }
+
+    const fetchPendingRequests = async () => {
+      try {
+        const response = await fetch(`/api/meetings/pending-requests?meetingId=${meeting.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setPendingRequests(data.requests || []);
+        }
+      } catch (err) {
+        console.error("Error fetching pending requests:", err);
+      }
+    };
+
+    // Fetch immediately
+    fetchPendingRequests();
+
+    // Poll every 3 seconds
+    const interval = setInterval(fetchPendingRequests, 3000);
+
+    return () => clearInterval(interval);
+  }, [isHost, isConnected, meeting?.id]);
+
+  async function handleApproveRequest(requestId: string, approve: boolean) {
+    try {
+      const response = await fetch("/api/meetings/approve-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestId,
+          approve,
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh pending requests
+        const fetchResponse = await fetch(`/api/meetings/pending-requests?meetingId=${meeting?.id}`);
+        if (fetchResponse.ok) {
+          const data = await fetchResponse.json();
+          setPendingRequests(data.requests || []);
+        }
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to update request");
+      }
+    } catch (err) {
+      console.error("Error approving request:", err);
+      setError("Failed to update join request");
     }
   }
 
@@ -503,6 +664,21 @@ function MeetingRoom() {
   }, [user?.email, displayName, isConnected]);
 
   async function handleLeave() {
+    try {
+      // Record leaving
+      if (meeting?.id) {
+        await fetch("/api/meetings/leave", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meetingId: meeting.id,
+          }),
+        });
+      }
+    } catch (err) {
+      console.error("Error recording leave:", err);
+    }
+
     await hmsActions.leave();
     router.push("/meetings");
   }
@@ -532,6 +708,39 @@ function MeetingRoom() {
   }
 
   if (!isConnected) {
+    // Show waiting room if waiting for approval
+    if (isWaitingForApproval) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 py-16 text-slate-100">
+          <div className="w-full max-w-md space-y-6 rounded-xl border border-slate-800 bg-slate-900/70 p-8">
+            <div className="text-center">
+              <div className="mb-4 flex justify-center">
+                <div className="h-16 w-16 animate-spin rounded-full border-4 border-slate-600 border-t-sky-500"></div>
+              </div>
+              <h1 className="text-2xl font-semibold">Waiting for Approval</h1>
+              <p className="mt-2 text-sm text-slate-300">
+                Your join request has been sent to the host. Please wait...
+              </p>
+              <p className="mt-4 text-xs text-slate-400">
+                Meeting: {meeting.title}
+              </p>
+            </div>
+            
+            <button
+              onClick={() => {
+                setIsWaitingForApproval(false);
+                setRequestId(null);
+              }}
+              className="w-full rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+            >
+              Cancel Request
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Show join form
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 py-16 text-slate-100">
         <div className="w-full max-w-md space-y-6 rounded-xl border border-slate-800 bg-slate-900/70 p-8">
@@ -539,6 +748,9 @@ function MeetingRoom() {
             <h1 className="text-2xl font-semibold">{meeting.title}</h1>
             {meeting.description && (
               <p className="mt-2 text-sm text-slate-300">{meeting.description}</p>
+            )}
+            {isHost && (
+              <p className="mt-2 text-xs text-emerald-400">You are the host</p>
             )}
           </div>
           
@@ -567,7 +779,7 @@ function MeetingRoom() {
               disabled={joining || !displayName.trim()}
               className="w-full rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {joining ? "Joining..." : "Join Meeting"}
+              {joining ? "Joining..." : isHost ? "Start Meeting" : "Request to Join"}
             </button>
             
             {error && <p className="text-sm text-rose-300 text-center">{error}</p>}
@@ -583,6 +795,19 @@ function MeetingRoom() {
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-semibold">{meeting.title}</h1>
           <div className="flex items-center gap-4">
+            {isHost && pendingRequests.length > 0 && (
+              <button
+                onClick={() => setShowHostPanel(!showHostPanel)}
+                className="relative rounded-md bg-yellow-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-400"
+              >
+                <span className="flex items-center gap-2">
+                  Join Requests
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/20 text-xs font-bold">
+                    {pendingRequests.length}
+                  </span>
+                </span>
+              </button>
+            )}
             <span className="text-sm text-slate-400">
               {peers.length} participant{peers.length !== 1 ? "s" : ""}
             </span>
@@ -594,6 +819,52 @@ function MeetingRoom() {
             </button>
           </div>
         </div>
+        {isHost && showHostPanel && (
+          <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white">Pending Join Requests</h2>
+              <button
+                onClick={() => setShowHostPanel(false)}
+                className="text-xs text-slate-400 hover:text-slate-200"
+              >
+                Close
+              </button>
+            </div>
+            {pendingRequests.length === 0 ? (
+              <p className="text-sm text-slate-400">No pending requests</p>
+            ) : (
+              <div className="space-y-2">
+                {pendingRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="flex items-center justify-between rounded-md border border-slate-700 bg-slate-900 p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-white">{request.display_name}</p>
+                      <p className="text-xs text-slate-400">
+                        Requested {new Date(request.requested_at).toLocaleTimeString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApproveRequest(request.id, true)}
+                        className="rounded-md bg-green-500 px-3 py-1 text-xs font-semibold text-white transition hover:bg-green-400"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleApproveRequest(request.id, false)}
+                        className="rounded-md bg-red-500 px-3 py-1 text-xs font-semibold text-white transition hover:bg-red-400"
+                      >
+                        Deny
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </header>
       <main className="flex-1 p-6">
         <div className="mx-auto h-full max-w-7xl">

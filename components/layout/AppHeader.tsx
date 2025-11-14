@@ -9,6 +9,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/meetings", label: "Meetings" },
+  { href: "/dashboard", label: "Dashboard" },
 ];
 
 export function AppHeader() {
