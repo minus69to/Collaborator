@@ -122,9 +122,31 @@ export async function GET(request: NextRequest) {
       throw participantsError;
     }
 
+    // Fetch emails for all participants from auth.users
+    const participantsWithEmails = await Promise.all(
+      (participants || []).map(async (participant) => {
+        try {
+          const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
+            participant.user_id
+          );
+          
+          return {
+            ...participant,
+            email: userData?.user?.email || null,
+          };
+        } catch (err) {
+          console.error(`Error fetching email for user ${participant.user_id}:`, err);
+          return {
+            ...participant,
+            email: null,
+          };
+        }
+      })
+    );
+
     return Response.json({
       ok: true,
-      participants: participants || [],
+      participants: participantsWithEmails || [],
     });
   } catch (error) {
     return toErrorResponse(error);
