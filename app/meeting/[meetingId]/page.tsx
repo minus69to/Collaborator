@@ -161,30 +161,79 @@ function MeetingRoom() {
   
   // Toggle audio/video - use direct HMS actions as fallback
   const avToggle = useAVToggle();
+  const [toggleError, setToggleError] = useState<string | null>(null);
   
   const handleToggleAudio = async () => {
+    setToggleError(null);
     try {
+      console.log("Toggle audio clicked", {
+        isAudioEnabled,
+        localPeerId: localPeer?.id,
+        localPeerRole: localPeer?.role?.name,
+        hasAVToggle: !!avToggle?.toggleAudio,
+      });
+
       if (avToggle?.toggleAudio) {
+        console.log("Using avToggle.toggleAudio()");
         await avToggle.toggleAudio();
       } else {
         // Fallback: setEnabledTrack(trackType, enabled)
+        console.log("Using hmsActions.setEnabledTrack('audio',", !isAudioEnabled, ")");
         await hmsActions.setEnabledTrack("audio", !isAudioEnabled);
       }
+      
+      console.log("Audio toggle successful");
+      
+      // Verify the change after a short delay
+      setTimeout(() => {
+        console.log("Audio state after toggle:", {
+          wasEnabled: isAudioEnabled,
+          nowEnabled: !isAudioEnabled,
+        });
+      }, 500);
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to toggle audio";
       console.error("Failed to toggle audio:", err);
+      setToggleError(errorMsg);
+      // Clear error after 3 seconds
+      setTimeout(() => setToggleError(null), 3000);
     }
   };
 
   const handleToggleVideo = async () => {
+    setToggleError(null);
     try {
+      console.log("Toggle video clicked", {
+        isVideoEnabled,
+        localPeerId: localPeer?.id,
+        localPeerRole: localPeer?.role?.name,
+        hasAVToggle: !!avToggle?.toggleVideo,
+      });
+
       if (avToggle?.toggleVideo) {
+        console.log("Using avToggle.toggleVideo()");
         await avToggle.toggleVideo();
       } else {
         // Fallback: setEnabledTrack(trackType, enabled)
+        console.log("Using hmsActions.setEnabledTrack('video',", !isVideoEnabled, ")");
         await hmsActions.setEnabledTrack("video", !isVideoEnabled);
       }
+      
+      console.log("Video toggle successful");
+      
+      // Verify the change after a short delay
+      setTimeout(() => {
+        console.log("Video state after toggle:", {
+          wasEnabled: isVideoEnabled,
+          nowEnabled: !isVideoEnabled,
+        });
+      }, 500);
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to toggle video";
       console.error("Failed to toggle video:", err);
+      setToggleError(errorMsg);
+      // Clear error after 3 seconds
+      setTimeout(() => setToggleError(null), 3000);
     }
   };
 
@@ -451,27 +500,41 @@ function MeetingRoom() {
       </main>
       {/* Controls Bar */}
       <footer className="border-t border-slate-800 bg-slate-900/70 p-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-center gap-4">
-          <button
-            onClick={handleToggleAudio}
-            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
-              isAudioEnabled
-                ? "bg-slate-700 text-white hover:bg-slate-600"
-                : "bg-rose-500 text-white hover:bg-rose-400"
-            }`}
-          >
-            {isAudioEnabled ? "🎤" : "🔇"} {isAudioEnabled ? "Mute" : "Unmute"}
-          </button>
-          <button
-            onClick={handleToggleVideo}
-            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
-              isVideoEnabled
-                ? "bg-slate-700 text-white hover:bg-slate-600"
-                : "bg-rose-500 text-white hover:bg-rose-400"
-            }`}
-          >
-            {isVideoEnabled ? "📹" : "📵"} {isVideoEnabled ? "Stop Video" : "Start Video"}
-          </button>
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-4">
+          {toggleError && (
+            <div className="rounded-md bg-rose-500/20 px-4 py-2 text-sm text-rose-300">
+              Error: {toggleError}
+            </div>
+          )}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleToggleAudio}
+              disabled={!isConnected || !localPeer}
+              className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                isAudioEnabled
+                  ? "bg-slate-700 text-white hover:bg-slate-600"
+                  : "bg-rose-500 text-white hover:bg-rose-400"
+              }`}
+            >
+              {isAudioEnabled ? "🎤" : "🔇"} {isAudioEnabled ? "Mute" : "Unmute"}
+            </button>
+            <button
+              onClick={handleToggleVideo}
+              disabled={!isConnected || !localPeer}
+              className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                isVideoEnabled
+                  ? "bg-slate-700 text-white hover:bg-slate-600"
+                  : "bg-rose-500 text-white hover:bg-rose-400"
+              }`}
+            >
+              {isVideoEnabled ? "📹" : "📵"} {isVideoEnabled ? "Stop Video" : "Start Video"}
+            </button>
+          </div>
+          {localPeer && (
+            <div className="text-xs text-slate-500">
+              Role: {localPeer.role?.name || "unknown"} | Peer ID: {localPeer.id}
+            </div>
+          )}
         </div>
       </footer>
     </div>

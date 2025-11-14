@@ -29,11 +29,8 @@ export async function GET(request: NextRequest) {
       throw badRequest("Meeting not found");
     }
 
-    // Allow access if user is the host or if meeting is public
-    if (data.host_id !== user.id) {
-      throw badRequest("You don't have permission to access this meeting");
-    }
-
+    // Allow any authenticated user to access meeting details (to join)
+    // Only the host can edit/delete meetings, but anyone can join
     return Response.json({ ok: true, meeting: data });
   } catch (error) {
     return toErrorResponse(error);
