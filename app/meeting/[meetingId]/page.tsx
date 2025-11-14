@@ -57,12 +57,16 @@ function VideoTile({
   localPeerId,
   isHost,
   audioTrack,
+  onToggleAudio,
+  onToggleVideo,
 }: {
   track: any;
   peer: any;
   localPeerId?: string;
   isHost?: boolean;
   audioTrack?: any;
+  onToggleAudio?: () => void;
+  onToggleVideo?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hmsActions = useHMSActions();
@@ -187,40 +191,85 @@ function VideoTile({
           
           {/* Status Icons */}
           <div className="flex items-center gap-2">
-            {/* Mic Icon */}
-            <div className={`flex items-center justify-center rounded-full p-1.5 ${
-              isAudioEnabled 
-                ? "bg-green-500/20 text-green-400" 
-                : "bg-red-500/20 text-red-400"
-            }`}>
-              {isAudioEnabled ? (
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
-                </svg>
-              ) : (
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
-                </svg>
-              )}
-            </div>
+            {/* Mic Icon - Clickable for local user */}
+            {isLocal ? (
+              <button
+                onClick={onToggleAudio}
+                className={`flex items-center justify-center rounded-full p-1.5 transition hover:opacity-80 active:scale-95 ${
+                  isAudioEnabled 
+                    ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" 
+                    : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                }`}
+                title={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
+              >
+                {isAudioEnabled ? (
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+            ) : (
+              <div className={`flex items-center justify-center rounded-full p-1.5 ${
+                isAudioEnabled 
+                  ? "bg-green-500/20 text-green-400" 
+                  : "bg-red-500/20 text-red-400"
+              }`}>
+                {isAudioEnabled ? (
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+            )}
             
-            {/* Camera Icon */}
-            <div className={`flex items-center justify-center rounded-full p-1.5 ${
-              isVideoEnabled 
-                ? "bg-green-500/20 text-green-400" 
-                : "bg-red-500/20 text-red-400"
-            }`}>
-              {isVideoEnabled ? (
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                </svg>
-              ) : (
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
-                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                </svg>
-              )}
-            </div>
+            {/* Camera Icon - Clickable for local user */}
+            {isLocal ? (
+              <button
+                onClick={onToggleVideo}
+                className={`flex items-center justify-center rounded-full p-1.5 transition hover:opacity-80 active:scale-95 ${
+                  isVideoEnabled 
+                    ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" 
+                    : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                }`}
+                title={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
+              >
+                {isVideoEnabled ? (
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                  </svg>
+                )}
+              </button>
+            ) : (
+              <div className={`flex items-center justify-center rounded-full p-1.5 ${
+                isVideoEnabled 
+                  ? "bg-green-500/20 text-green-400" 
+                  : "bg-red-500/20 text-red-400"
+              }`}>
+                {isVideoEnabled ? (
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                    <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                  </svg>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -965,6 +1014,8 @@ function MeetingRoom() {
                     localPeerId={localPeer?.id}
                     isHost={isHost}
                     audioTrack={audioTrack}
+                    onToggleAudio={peer.id === localPeer?.id ? handleToggleAudio : undefined}
+                    onToggleVideo={peer.id === localPeer?.id ? handleToggleVideo : undefined}
                   />
                 </div>
               );
@@ -980,41 +1031,12 @@ function MeetingRoom() {
           </div>
         </div>
       </main>
-      {/* Controls Bar */}
-      <footer className="border-t border-slate-800 bg-slate-900/70 p-4">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-4">
+      {/* Minimal Footer - Controls are now in video tiles */}
+      <footer className="border-t border-slate-800 bg-slate-900/70 p-2">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-2">
           {toggleError && (
             <div className="rounded-md bg-rose-500/20 px-4 py-2 text-sm text-rose-300">
               Error: {toggleError}
-            </div>
-          )}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleToggleAudio}
-              disabled={!isConnected || !localPeer}
-              className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                isAudioEnabled
-                  ? "bg-slate-700 text-white hover:bg-slate-600"
-                  : "bg-rose-500 text-white hover:bg-rose-400"
-              }`}
-            >
-              {isAudioEnabled ? "🎤" : "🔇"} {isAudioEnabled ? "Mute" : "Unmute"}
-            </button>
-            <button
-              onClick={handleToggleVideo}
-              disabled={!isConnected || !localPeer}
-              className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                isVideoEnabled
-                  ? "bg-slate-700 text-white hover:bg-slate-600"
-                  : "bg-rose-500 text-white hover:bg-rose-400"
-              }`}
-            >
-              {isVideoEnabled ? "📹" : "📵"} {isVideoEnabled ? "Stop Video" : "Start Video"}
-            </button>
-          </div>
-          {localPeer && (
-            <div className="text-xs text-slate-500">
-              Role: {localPeer.role?.name || "unknown"} | Peer ID: {localPeer.id}
             </div>
           )}
         </div>
