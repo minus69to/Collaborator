@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
@@ -10,6 +11,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -26,7 +28,9 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
     } else {
-      setSuccess("Signed in! Feel free to return to your meetings.");
+      setSuccess("Signed in! Redirecting to your meetings…");
+      router.push("/meetings");
+      router.refresh();
     }
     setIsLoading(false);
   }

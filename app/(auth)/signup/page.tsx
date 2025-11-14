@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 export default function SignupPage() {
@@ -11,6 +12,7 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -32,7 +34,11 @@ export default function SignupPage() {
     if (error) {
       setError(error.message);
     } else {
-      setSuccess("Check your inbox to confirm your email and sign in.");
+      setSuccess("Check your inbox to confirm your email. Redirecting to sign in…");
+      setTimeout(() => {
+        router.push("/login");
+        router.refresh();
+      }, 1500);
     }
     setIsLoading(false);
   }
