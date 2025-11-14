@@ -38,53 +38,55 @@ export async function POST(request: NextRequest) {
         .eq("id", body.meetingId);
     }
 
-    // Check if participant record already exists (from approval)
-    const { data: existingParticipant } = await supabase
+    // Check if participant record already exists and is active
+    // First, try to end any existing active participant records
+    const { data: existingParticipants, error: checkError } = await supabase
       .from("meeting_participants")
       .select("*")
       .eq("meeting_id", body.meetingId)
       .eq("user_id", user.id)
       .is("left_at", null)
-      .order("joined_at", { ascending: false })
-      .limit(1)
+      .order("joined_at", { ascending: false });
+
+    // End all existing active participant records (there should only be one, but handle multiple)
+    if (existingParticipants && existingParticipants.length > 0) {
+      const now = new Date().toISOString();
+      const existingIds = existingParticipants.map(p => p.id);
+      
+      // Mark all existing records as left
+      const { error: updateError } = await supabase
+        .from("meeting_participants")
+        .update({ left_at: now })
+        .in("id", existingIds);
+
+      if (updateError) {
+        console.error("Error ending existing participant records:", updateError);
+        // Continue anyway - try to create new record
+      } else {
+        console.log(`Ended ${existingParticipants.length} existing participant record(s)`);
+        // Wait a moment to ensure database update is complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    // Now create new participant record
+    const { data: newParticipant, error: insertError } = await supabase
+      .from("meeting_participants")
+      .insert({
+        meeting_id: body.meetingId,
+        user_id: user.id,
+        role: body.role,
+        display_name: body.displayName.trim(),
+      })
+      .select()
       .single();
 
-    let participant;
-    if (existingParticipant) {
-      // Update existing record if needed (e.g., display name changed)
-      const { data: updated, error: updateError } = await supabase
-        .from("meeting_participants")
-        .update({
-          display_name: body.displayName.trim(),
-          role: body.role,
-        })
-        .eq("id", existingParticipant.id)
-        .select()
-        .single();
-
-      if (updateError || !updated) {
-        throw new Error("Failed to update participant record");
-      }
-      participant = updated;
-    } else {
-      // Create new participant record
-      const { data: newParticipant, error: insertError } = await supabase
-        .from("meeting_participants")
-        .insert({
-          meeting_id: body.meetingId,
-          user_id: user.id,
-          role: body.role,
-          display_name: body.displayName.trim(),
-        })
-        .select()
-        .single();
-
-      if (insertError || !newParticipant) {
-        console.error("Insert error:", insertError);
-        throw new Error(`Failed to create participant record: ${insertError?.message || "Unknown error"}`);
-      }
-      participant = newParticipant;
+    if (insertError || !newParticipant) {
+      console.error("Insert error:", insertError);
+      throw new Error(`Failed to create participant record: ${insertError?.message || "Unknown error"}`);
     }
+
+    const participant = newParticipant;
 
     return Response.json({
       ok: true,

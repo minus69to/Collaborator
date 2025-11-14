@@ -36,9 +36,27 @@ export async function GET(request: NextRequest) {
       throw badRequest("Meeting not found");
     }
 
+    // Get host's email for identification
+    let hostEmail: string | null = null;
+    if (data.host_id) {
+      try {
+        const { data: hostUser } = await supabase.auth.admin.getUserById(data.host_id);
+        hostEmail = hostUser?.user?.email || null;
+      } catch (err) {
+        console.error("Failed to fetch host email:", err);
+        // Continue without host email
+      }
+    }
+
     // Allow any authenticated user to access meeting details (to join)
     // Only the host can edit/delete meetings, but anyone can join
-    return Response.json({ ok: true, meeting: data });
+    return Response.json({ 
+      ok: true, 
+      meeting: {
+        ...data,
+        host_email: hostEmail,
+      }
+    });
   } catch (error) {
     return toErrorResponse(error);
   }

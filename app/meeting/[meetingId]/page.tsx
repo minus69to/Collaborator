@@ -56,17 +56,23 @@ function VideoTile({
   peer,
   localPeerId,
   isHost,
+  isLocalHost,
   audioTrack,
   onToggleAudio,
   onToggleVideo,
+  onToggleRemoteAudio,
+  onToggleRemoteVideo,
 }: {
   track: any;
   peer: any;
   localPeerId?: string;
   isHost?: boolean;
+  isLocalHost?: boolean;
   audioTrack?: any;
   onToggleAudio?: () => void;
   onToggleVideo?: () => void;
+  onToggleRemoteAudio?: (peerId: string, enabled: boolean) => void;
+  onToggleRemoteVideo?: (peerId: string, enabled: boolean) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hmsActions = useHMSActions();
@@ -191,16 +197,26 @@ function VideoTile({
           
           {/* Status Icons */}
           <div className="flex items-center gap-2">
-            {/* Mic Icon - Clickable for local user */}
-            {isLocal ? (
+            {/* Mic Icon - Clickable for local user or host */}
+            {(isLocal || (isLocalHost && !isLocal)) ? (
               <button
-                onClick={onToggleAudio}
+                onClick={() => {
+                  if (isLocal && onToggleAudio) {
+                    onToggleAudio();
+                  } else if (isLocalHost && !isLocal && onToggleRemoteAudio) {
+                    onToggleRemoteAudio(peer.id, !isAudioEnabled);
+                  }
+                }}
                 className={`flex items-center justify-center rounded-full p-1.5 transition hover:opacity-80 active:scale-95 ${
                   isAudioEnabled 
                     ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" 
                     : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
                 }`}
-                title={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
+                title={
+                  isLocal 
+                    ? (isAudioEnabled ? "Mute microphone" : "Unmute microphone")
+                    : (isAudioEnabled ? `Mute ${peerName}'s microphone` : `Unmute ${peerName}'s microphone`)
+                }
               >
                 {isAudioEnabled ? (
                   <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -230,16 +246,26 @@ function VideoTile({
               </div>
             )}
             
-            {/* Camera Icon - Clickable for local user */}
-            {isLocal ? (
+            {/* Camera Icon - Clickable for local user or host */}
+            {(isLocal || (isLocalHost && !isLocal)) ? (
               <button
-                onClick={onToggleVideo}
+                onClick={() => {
+                  if (isLocal && onToggleVideo) {
+                    onToggleVideo();
+                  } else if (isLocalHost && !isLocal && onToggleRemoteVideo) {
+                    onToggleRemoteVideo(peer.id, !isVideoEnabled);
+                  }
+                }}
                 className={`flex items-center justify-center rounded-full p-1.5 transition hover:opacity-80 active:scale-95 ${
                   isVideoEnabled 
                     ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" 
                     : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
                 }`}
-                title={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
+                title={
+                  isLocal 
+                    ? (isVideoEnabled ? "Turn off camera" : "Turn on camera")
+                    : (isVideoEnabled ? `Turn off ${peerName}'s camera` : `Turn on ${peerName}'s camera`)
+                }
               >
                 {isVideoEnabled ? (
                   <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -406,6 +432,7 @@ function MeetingRoom() {
     description?: string | null; 
     hms_room_id?: string | null;
     host_id?: string;
+    host_email?: string | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -416,6 +443,10 @@ function MeetingRoom() {
   const [isHost, setIsHost] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [showHostPanel, setShowHostPanel] = useState(false);
+  const [hostDisplayName, setHostDisplayName] = useState<string | null>(null);
+  const [activeParticipantNames, setActiveParticipantNames] = useState<Set<string>>(new Set());
+  const [participantNameToUserId, setParticipantNameToUserId] = useState<Map<string, string>>(new Map());
+  const [userIdToDisplayName, setUserIdToDisplayName] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     async function fetchMeeting() {
@@ -429,6 +460,31 @@ function MeetingRoom() {
         // Check if current user is the host
         if (user && payload.meeting.host_id === user.id) {
           setIsHost(true);
+        }
+
+        // Check if user is already an active participant
+        if (user) {
+          const participantCheck = await fetch(
+            `/api/meetings/check-participant?meetingId=${meetingId}`
+          );
+          if (participantCheck.ok) {
+            const participantData = await participantCheck.json();
+            if (participantData.isActiveParticipant && participantData.participant) {
+              // User is already an active participant
+              // Set their display name from existing record
+              const existingDisplayName = participantData.participant.display_name || "";
+              setDisplayName(existingDisplayName);
+              // If host, set host display name
+              if (participantData.participant.role === "host") {
+                setHostDisplayName(existingDisplayName);
+              }
+              
+              // Check if there's an existing connection (page refresh case)
+              // Note: On refresh, HMS SDK connection is lost, so we need to rejoin
+              // But we preserve the participant record so user doesn't count twice
+              console.log("User is already an active participant, can rejoin without creating new record");
+            }
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
@@ -453,10 +509,57 @@ function MeetingRoom() {
       return;
     }
 
+    // Check if already connected to avoid duplicate joins
+    if (isConnected) {
+      setError("You are already in this meeting");
+      return;
+    }
+
     setJoining(true);
     setError(null);
 
     try {
+      // Immediately terminate previous join if exists
+      // This ensures the previous participant record is ended before creating a new one
+      const participantCheck = await fetch(
+        `/api/meetings/check-participant?meetingId=${meeting.id}`
+      );
+      if (participantCheck.ok) {
+        const participantData = await participantCheck.json();
+        if (participantData.isActiveParticipant) {
+          // User has an active participant record - terminate it immediately and WAIT for it to complete
+          console.log("Terminating previous participant record before new join");
+          try {
+            const leaveResponse = await fetch("/api/meetings/leave", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                meetingId: meeting.id,
+              }),
+            });
+            
+            if (!leaveResponse.ok) {
+              console.error("Failed to terminate previous participant record");
+            } else {
+              console.log("Previous participant record terminated successfully");
+              // Wait a bit to ensure database update is complete
+              await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            
+            // Signal other tabs to leave via localStorage
+            const leaveSignalKey = `hms_leave_${meeting.id}_${user.id}`;
+            localStorage.setItem(leaveSignalKey, Date.now().toString());
+            // Remove signal after a short delay
+            setTimeout(() => {
+              localStorage.removeItem(leaveSignalKey);
+            }, 1000);
+          } catch (err) {
+            console.error("Error terminating previous participant:", err);
+            // Continue anyway - the participants API will handle it as fallback
+          }
+        }
+      }
+
       // Check if user is host - if yes, join directly
       if (isHost) {
         await joinMeeting(displayName.trim(), "host");
@@ -497,10 +600,52 @@ function MeetingRoom() {
     }
   }
 
-  async function joinMeeting(name: string, role: "host" | "participant") {
+  // Join HMS room only (without creating participant record)
+  async function joinHMSRoom(name: string) {
     if (!meeting?.hms_room_id) return;
 
+    // Declare storageKey once at the beginning
+    const storageKey = `hms_connected_${meeting.id}_${user?.id}`;
+
     try {
+      // Check if already connected before joining
+      if (isConnected) {
+        console.log("Already connected to HMS room, skipping join");
+        return;
+      }
+
+      // Check localStorage to prevent duplicate joins from multiple tabs
+      // Use timestamp to allow rejoin after 5 seconds (in case tab crashed)
+      const existingConnection = localStorage.getItem(storageKey);
+      if (existingConnection) {
+        const connectionTime = parseInt(existingConnection, 10);
+        const now = Date.now();
+        const timeSinceConnection = now - connectionTime;
+        
+        // If connection is less than 5 seconds old, prevent duplicate join
+        // Shorter window to allow refresh to work better
+        if (timeSinceConnection < 5000) {
+          // Another tab might be connected - end previous participant record first
+          try {
+            await fetch("/api/meetings/leave", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                meetingId: meeting.id,
+              }),
+            });
+            // Clear old connection marker
+            localStorage.removeItem(storageKey);
+          } catch (err) {
+            console.error("Error ending previous participant record:", err);
+          }
+          // Continue with join - previous record will be ended
+        } else {
+          // Old connection (tab might have crashed) - allow rejoin
+          localStorage.removeItem(storageKey);
+        }
+      }
+
       // Get token from our API
       const tokenResponse = await fetch("/api/100ms-token", {
         method: "POST",
@@ -522,35 +667,68 @@ function MeetingRoom() {
         throw new Error("No token received from server");
       }
 
+      // Mark as connecting in localStorage with timestamp
+      localStorage.setItem(storageKey, Date.now().toString());
+
       // Join the 100ms room with the display name
       await hmsActions.join({
         userName: name,
         authToken: token,
       });
+    } catch (err) {
+      // Clear storage on error
+      localStorage.removeItem(storageKey);
+      throw err;
+    }
+  }
+
+  async function joinMeeting(name: string, role: "host" | "participant") {
+    if (!meeting?.hms_room_id) return;
+
+    try {
+      // First check if already connected
+      if (isConnected) {
+        console.log("Already connected to HMS room");
+        // Still update participant record if needed
+        await recordParticipant(name, role);
+        return;
+      }
+
+      // Join HMS room
+      await joinHMSRoom(name);
 
       // Record participant - wait for it to complete to ensure it's saved
-      try {
-        const participantResponse = await fetch("/api/meetings/participants", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            meetingId: meeting.id,
-            role,
-            displayName: name,
-          }),
-        });
-
-        if (!participantResponse.ok) {
-          const errorData = await participantResponse.json();
-          console.error("Failed to record participant:", errorData.error);
-          // Don't throw - we're already in the meeting, just log the error
-        }
-      } catch (err) {
-        console.error("Error recording participant:", err);
-        // Don't throw - we're already in the meeting
-      }
+      await recordParticipant(name, role);
     } catch (err) {
       throw err;
+    }
+  }
+
+  async function recordParticipant(name: string, role: "host" | "participant") {
+    try {
+      const participantResponse = await fetch("/api/meetings/participants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          meetingId: meeting?.id,
+          role,
+          displayName: name,
+        }),
+      });
+
+      if (!participantResponse.ok) {
+        const errorData = await participantResponse.json();
+        console.error("Failed to record participant:", errorData.error);
+        // Don't throw - we're already in the meeting, just log the error
+      } else {
+        // If host joined, store their display name for identification
+        if (role === "host") {
+          setHostDisplayName(name);
+        }
+      }
+    } catch (err) {
+      console.error("Error recording participant:", err);
+      // Don't throw - we're already in the meeting
     }
   }
 
@@ -617,6 +795,100 @@ function MeetingRoom() {
     return () => clearInterval(interval);
   }, [isHost, isConnected, meeting?.id]);
 
+  // Fetch host display name and active participant names from participant records when connected
+  useEffect(() => {
+    if (isConnected && meeting?.id) {
+      const fetchParticipantInfo = async () => {
+        try {
+          // Get all active participants
+          const response = await fetch(`/api/meetings/participants?meetingId=${meeting.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            const participants = data.participants || [];
+            
+            // Set active participant names for filtering
+            const names = new Set(participants.map((p: any) => p.display_name).filter(Boolean));
+            setActiveParticipantNames(names);
+            
+            // Build mapping: display_name -> user_id (for current active participants)
+            // Also build mapping: user_id -> display_name (current display name for each user)
+            // IMPORTANT: Only one active participant per user_id, so each user_id maps to their current name
+            const nameToUserIdMap = new Map<string, string>();
+            const userIdToNameMap = new Map<string, string>();
+            
+            participants.forEach((p: any) => {
+              if (p.display_name && p.user_id) {
+                // Current active participant: this is the user's current display name
+                nameToUserIdMap.set(p.display_name, p.user_id);
+                userIdToNameMap.set(p.user_id, p.display_name);
+              }
+            });
+            
+            setParticipantNameToUserId(nameToUserIdMap);
+            setUserIdToDisplayName(userIdToNameMap);
+            
+            // Get host display name - ALWAYS update (not just when !hostDisplayName) to ensure it's current
+            if (meeting.host_id) {
+              const hostParticipant = participants.find((p: any) => 
+                p.user_id === meeting.host_id && p.role === "host"
+              );
+              if (hostParticipant?.display_name) {
+                setHostDisplayName(hostParticipant.display_name);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching participant info:", err);
+        }
+      };
+      
+      // Fetch immediately
+      fetchParticipantInfo();
+      
+      // Then fetch periodically
+      const interval = setInterval(fetchParticipantInfo, 2000); // Every 2 seconds for faster updates
+      
+      return () => clearInterval(interval);
+    } else {
+      // Reset when not connected
+      setActiveParticipantNames(new Set());
+      setParticipantNameToUserId(new Map());
+      setUserIdToDisplayName(new Map());
+      setHostDisplayName(null);
+    }
+  }, [isConnected, meeting?.id, meeting?.host_id]);
+  
+  // Also fetch participant info when peers change (to update host badge immediately)
+  useEffect(() => {
+    if (isConnected && meeting?.id && peers.length > 0) {
+      const fetchParticipantInfo = async () => {
+        try {
+          const response = await fetch(`/api/meetings/participants?meetingId=${meeting.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            const participants = data.participants || [];
+            
+            // Update host display name immediately when peers change
+            if (meeting.host_id) {
+              const hostParticipant = participants.find((p: any) => 
+                p.user_id === meeting.host_id && p.role === "host"
+              );
+              if (hostParticipant?.display_name && hostDisplayName !== hostParticipant.display_name) {
+                setHostDisplayName(hostParticipant.display_name);
+              }
+            }
+          }
+        } catch (err) {
+          // Silently fail - main polling will handle it
+        }
+      };
+      
+      // Debounce to avoid too many requests
+      const timeout = setTimeout(fetchParticipantInfo, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [peers.length, isConnected, meeting?.id, meeting?.host_id, hostDisplayName]);
+
   async function handleApproveRequest(requestId: string, approve: boolean) {
     try {
       const response = await fetch("/api/meetings/approve-request", {
@@ -642,6 +914,147 @@ function MeetingRoom() {
     } catch (err) {
       console.error("Error approving request:", err);
       setError("Failed to update join request");
+    }
+  }
+
+  // Host can toggle remote participants' audio/video
+  async function handleToggleRemoteAudio(peerId: string, enabled: boolean) {
+    if (!isHost || !hmsActions) return;
+
+    try {
+      // Find the peer
+      const peer = peers.find((p) => p.id === peerId);
+      if (!peer) {
+        throw new Error("Peer not found");
+      }
+
+      // Get audio track ID
+      let audioTrackId: string | undefined;
+      if (typeof peer.audioTrack === "string") {
+        audioTrackId = peer.audioTrack;
+      } else if (peer.audioTrack?.id) {
+        audioTrackId = peer.audioTrack.id;
+      }
+
+      // If track ID not directly available, look it up in tracksMap
+      if (!audioTrackId && tracksMap) {
+        const allTracks = Object.values(tracksMap);
+        const peerAudioTrack = allTracks.find((track: any) => {
+          return (track.peerId === peerId || track.peer?.id === peerId) && track.type === "audio";
+        });
+        audioTrackId = peerAudioTrack?.id;
+      }
+
+      if (!audioTrackId) {
+        throw new Error("Audio track not found");
+      }
+
+      // Get the actual track object from tracksMap
+      const track = tracksMap?.[audioTrackId];
+      
+      console.log("Host toggling remote audio:", { 
+        peerId, 
+        peerName: peer.name,
+        enabled, 
+        audioTrackId,
+        hasTrack: !!track 
+      });
+      
+      // Try multiple methods to change remote track state
+      // Method 1: Try changeTrackState if available
+      if (typeof (hmsActions as any).changeTrackState === "function") {
+        await (hmsActions as any).changeTrackState(audioTrackId, enabled);
+      } 
+      // Method 2: Try setRemoteTrackEnabled if available
+      else if (typeof (hmsActions as any).setRemoteTrackEnabled === "function") {
+        await (hmsActions as any).setRemoteTrackEnabled(audioTrackId, enabled);
+      }
+      // Method 3: Try setTrackState if available
+      else if (typeof (hmsActions as any).setTrackState === "function" && track) {
+        await (hmsActions as any).setTrackState(track, enabled);
+      }
+      else {
+        // Fallback: Log warning that method not available
+        console.warn("Remote track control methods not available in HMS SDK. Check role permissions.");
+        throw new Error("Remote track control not available. Check 100ms role permissions.");
+      }
+      
+      console.log("Remote audio toggle successful");
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to toggle remote audio";
+      console.error("Failed to toggle remote audio:", err);
+      setToggleError(errorMsg);
+      setTimeout(() => setToggleError(null), 3000);
+    }
+  }
+
+  async function handleToggleRemoteVideo(peerId: string, enabled: boolean) {
+    if (!isHost || !hmsActions) return;
+
+    try {
+      // Find the peer
+      const peer = peers.find((p) => p.id === peerId);
+      if (!peer) {
+        throw new Error("Peer not found");
+      }
+
+      // Get video track ID
+      let videoTrackId: string | undefined;
+      if (typeof peer.videoTrack === "string") {
+        videoTrackId = peer.videoTrack;
+      } else if (peer.videoTrack?.id) {
+        videoTrackId = peer.videoTrack.id;
+      }
+
+      // If track ID not directly available, look it up in tracksMap
+      if (!videoTrackId && tracksMap) {
+        const allTracks = Object.values(tracksMap);
+        const peerVideoTrack = allTracks.find((track: any) => {
+          return (track.peerId === peerId || track.peer?.id === peerId) && track.type === "video";
+        });
+        videoTrackId = peerVideoTrack?.id;
+      }
+
+      if (!videoTrackId) {
+        throw new Error("Video track not found");
+      }
+
+      // Get the actual track object from tracksMap
+      const track = tracksMap?.[videoTrackId];
+      
+      console.log("Host toggling remote video:", { 
+        peerId, 
+        peerName: peer.name,
+        enabled, 
+        videoTrackId,
+        hasTrack: !!track 
+      });
+      
+      // Try multiple methods to change remote track state
+      // Method 1: Try changeTrackState if available
+      if (typeof (hmsActions as any).changeTrackState === "function") {
+        await (hmsActions as any).changeTrackState(videoTrackId, enabled);
+      } 
+      // Method 2: Try setRemoteTrackEnabled if available
+      else if (typeof (hmsActions as any).setRemoteTrackEnabled === "function") {
+        await (hmsActions as any).setRemoteTrackEnabled(videoTrackId, enabled);
+      }
+      // Method 3: Try setTrackState if available
+      else if (typeof (hmsActions as any).setTrackState === "function" && track) {
+        await (hmsActions as any).setTrackState(track, enabled);
+      }
+      else {
+        // Fallback: Log warning that method not available
+        console.warn("Remote track control methods not available in HMS SDK. Check role permissions.");
+        throw new Error("Remote track control not available. Check 100ms role permissions.");
+      }
+      
+      console.log("Remote video toggle successful");
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to toggle remote video";
+      console.error("Failed to toggle remote video:", err);
+      setToggleError(errorMsg);
+      setTimeout(() => setToggleError(null), 3000);
     }
   }
 
@@ -700,8 +1113,85 @@ function MeetingRoom() {
     if (isConnected) {
       setJoining(false);
       setError(null);
+      // Mark as connected in localStorage with timestamp
+      if (meeting?.id && user?.id) {
+        const storageKey = `hms_connected_${meeting.id}_${user.id}`;
+        localStorage.setItem(storageKey, Date.now().toString());
+      }
+    } else {
+      // Clear storage if disconnected
+      if (meeting?.id && user?.id) {
+        const storageKey = `hms_connected_${meeting.id}_${user.id}`;
+        localStorage.removeItem(storageKey);
+      }
     }
-  }, [isConnected]);
+  }, [isConnected, meeting?.id, user?.id]);
+
+  // Listen for leave signals from other tabs (when same user joins from another tab)
+  useEffect(() => {
+    if (!meeting?.id || !user?.id || !isConnected) return;
+
+    const leaveSignalKey = `hms_leave_${meeting.id}_${user.id}`;
+    let isLeaving = false;
+    
+    const performLeave = async () => {
+      if (isLeaving) return;
+      isLeaving = true;
+      console.log("Received leave signal from another tab - leaving meeting");
+      
+      try {
+        // Clear the signal
+        localStorage.removeItem(leaveSignalKey);
+        
+        // Leave HMS room
+        await hmsActions.leave();
+        
+        // Record leaving
+        try {
+          await fetch("/api/meetings/leave", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              meetingId: meeting.id,
+            }),
+          });
+        } catch (err) {
+          console.error("Error recording leave:", err);
+        }
+        
+        // Navigate away
+        router.push("/meetings");
+      } catch (err) {
+        console.error("Error leaving meeting:", err);
+        isLeaving = false;
+      }
+    };
+    
+    const handleStorageChange = (e: StorageEvent) => {
+      // Check if this is a leave signal for this user
+      if (e.key === leaveSignalKey && e.newValue) {
+        performLeave();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    
+    // Also check immediately in case signal was set before listener was added
+    const checkLeaveSignal = () => {
+      const signal = localStorage.getItem(leaveSignalKey);
+      if (signal) {
+        performLeave();
+      }
+    };
+    
+    // Check periodically (in case signal was set in same tab before listener)
+    const interval = setInterval(checkLeaveSignal, 500);
+    
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [meeting?.id, user?.id, isConnected, hmsActions, router]);
 
   // Set default display name from user email if not set
   useEffect(() => {
@@ -714,6 +1204,12 @@ function MeetingRoom() {
 
   async function handleLeave() {
     try {
+      // Clear localStorage
+      if (meeting?.id && user?.id) {
+        const storageKey = `hms_connected_${meeting.id}_${user.id}`;
+        localStorage.removeItem(storageKey);
+      }
+
       // Record leaving
       if (meeting?.id) {
         await fetch("/api/meetings/leave", {
@@ -731,6 +1227,35 @@ function MeetingRoom() {
     await hmsActions.leave();
     router.push("/meetings");
   }
+
+  // Handle page visibility change (tab switch/refresh)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && isConnected && meeting?.id) {
+        // Page became visible - check if still connected
+        // HMS SDK should handle reconnection automatically
+        console.log("Page visible, checking connection state");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isConnected, meeting?.id]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // On unmount, clear session storage if still connected
+      // This allows rejoin after refresh
+      if (meeting?.id && user?.id) {
+        const sessionKey = `hms_connected_${meeting.id}_${user.id}`;
+        // Don't clear here - let leave handler do it
+        // Otherwise refresh won't work
+      }
+    };
+  }, [meeting?.id, user?.id]);
 
   if (loading) {
     return (
@@ -858,7 +1383,12 @@ function MeetingRoom() {
               </button>
             )}
             <span className="text-sm text-slate-400">
-              {peers.length} participant{peers.length !== 1 ? "s" : ""}
+              {/* Use active participant count from database as source of truth */}
+              {activeParticipantNames.size > 0 
+                ? `${activeParticipantNames.size} participant${activeParticipantNames.size !== 1 ? "s" : ""}`
+                : peers.length > 0 
+                  ? `${peers.length} participant${peers.length !== 1 ? "s" : ""}`
+                  : "0 participants"}
             </span>
             <button
               onClick={handleLeave}
@@ -919,7 +1449,168 @@ function MeetingRoom() {
         <div className="mx-auto h-full max-w-7xl">
           {/* Video Grid */}
           <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {peers.map((peer) => {
+            {/* Filter out duplicate peers and disconnected peers */}
+            {(() => {
+              // Step 1: Group peers by user_id (if we can identify them) or by name
+              // First, try to identify which user_id each peer belongs to
+              const peerToUserId = new Map<string, string>(); // peer.id -> user_id
+              const peersByUserId = new Map<string, any[]>(); // user_id -> peers[]
+              const peersByName = new Map<string, any[]>(); // name -> peers[] (fallback)
+              
+              // First, add all peers - try to match by name to user_id
+              peers.forEach((peer) => {
+                const name = peer.name || "";
+                const userId = participantNameToUserId.get(name);
+                
+                if (userId) {
+                  // Peer's name matches current active participant name
+                  peerToUserId.set(peer.id, userId);
+                  if (!peersByUserId.has(userId)) {
+                    peersByUserId.set(userId, []);
+                  }
+                  peersByUserId.get(userId)!.push(peer);
+                } else {
+                  // Can't match to user_id - add to name-based group for now
+                  if (!peersByName.has(name)) {
+                    peersByName.set(name, []);
+                  }
+                  peersByName.get(name)!.push(peer);
+                }
+              });
+              
+              
+              // Step 2: For each user_id group, keep only ONE peer (prefer current display name)
+              // Then do the same for name-based groups (fallback)
+              const uniquePeers: any[] = [];
+              
+              // Process user_id-based groups first
+              peersByUserId.forEach((peerGroup, userId) => {
+                // Get current display name for this user
+                const currentDisplayName = userIdToDisplayName.get(userId) || "";
+                
+                // Prefer peer with current display name, otherwise pick best one
+                let keptPeer: any = null;
+                
+                // First, try to find peer with current display name
+                const peerWithCurrentName = peerGroup.find(p => (p.name || "") === currentDisplayName);
+                
+                if (peerWithCurrentName) {
+                  keptPeer = peerWithCurrentName;
+                  console.log(`User ${userId} has multiple peers: keeping peer with current name "${currentDisplayName}" (ID: ${keptPeer.id})`);
+                } else {
+                  // No peer with current name, pick the best one
+                  const localPeerInGroup = peerGroup.find(p => localPeer && p.id === localPeer.id);
+                  
+                  if (localPeerInGroup) {
+                    keptPeer = localPeerInGroup;
+                    console.log(`User ${userId} has multiple peers: keeping local peer (ID: ${keptPeer.id})`);
+                  } else {
+                    // Sort by track availability
+                    const sortedByTracks = [...peerGroup].sort((a, b) => {
+                      const aHasVideo = !!a.videoTrack;
+                      const bHasVideo = !!b.videoTrack;
+                      const aHasAudio = !!a.audioTrack;
+                      const bHasAudio = !!b.audioTrack;
+                      
+                      if (aHasVideo && !bHasVideo) return -1;
+                      if (!aHasVideo && bHasVideo) return 1;
+                      if (aHasAudio && !bHasAudio) return -1;
+                      if (!aHasAudio && bHasAudio) return 1;
+                      return 0;
+                    });
+                    
+                    keptPeer = sortedByTracks[0];
+                    console.log(`User ${userId} has multiple peers: keeping peer with best tracks (ID: ${keptPeer.id})`);
+                  }
+                }
+                
+                // Log filtered peers
+                peerGroup.forEach((peer) => {
+                  if (peer.id !== keptPeer.id) {
+                    console.log(`Filtering out peer for user ${userId}: "${peer.name || ""}" (ID: ${peer.id}) - user has new name "${currentDisplayName}"`);
+                  }
+                });
+                
+                uniquePeers.push(keptPeer);
+              });
+              
+              // Step 3: Process name-based groups (peers we couldn't match to user_id)
+              peersByName.forEach((peerGroup, name) => {
+                // Skip if we already processed this peer via user_id grouping
+                const alreadyProcessed = peerGroup.some(p => peerToUserId.has(p.id));
+                if (alreadyProcessed) {
+                  return; // Already handled in user_id grouping
+                }
+                
+                let keptPeer: any;
+                
+                if (peerGroup.length === 1) {
+                  keptPeer = peerGroup[0];
+                } else {
+                  // Multiple peers with same name but unknown user_id
+                  const localPeerInGroup = peerGroup.find(p => localPeer && p.id === localPeer.id);
+                  
+                  if (localPeerInGroup) {
+                    keptPeer = localPeerInGroup;
+                    console.log(`Duplicate peers found for "${name}": keeping local peer ${keptPeer.id}`);
+                  } else {
+                    const sortedByTracks = [...peerGroup].sort((a, b) => {
+                      const aHasVideo = !!a.videoTrack;
+                      const bHasVideo = !!b.videoTrack;
+                      const aHasAudio = !!a.audioTrack;
+                      const bHasAudio = !!b.audioTrack;
+                      
+                      if (aHasVideo && !bHasVideo) return -1;
+                      if (!aHasVideo && bHasVideo) return 1;
+                      if (aHasAudio && !bHasAudio) return -1;
+                      if (!aHasAudio && bHasAudio) return 1;
+                      return 0;
+                    });
+                    
+                    keptPeer = sortedByTracks[0];
+                    console.log(`Duplicate peers found for "${name}": keeping peer ${keptPeer.id} with best tracks`);
+                  }
+                  
+                  peerGroup.forEach((peer) => {
+                    if (peer.id !== keptPeer.id) {
+                      console.log(`Filtering out duplicate peer: ${name} (ID: ${peer.id})`);
+                    }
+                  });
+                }
+                
+                uniquePeers.push(keptPeer);
+              });
+              
+              // Step 4: Filter out disconnected peers and old peers (not in active participants)
+              return uniquePeers.filter((keptPeer) => {
+                // Always include local peer
+                if (keptPeer.id === localPeer?.id) {
+                  return true;
+                }
+                
+                const peerName = keptPeer.name || "";
+                const isInActiveParticipants = activeParticipantNames.has(peerName);
+                
+                // Check if peer has tracks
+                const hasVideoTrack = !!keptPeer.videoTrack;
+                const hasAudioTrack = !!keptPeer.audioTrack;
+                const hasAnyTrack = hasVideoTrack || hasAudioTrack;
+                
+                // If peer's name is not in active participants, it's either:
+                // 1. An old peer (user changed display name) - filter it out
+                // 2. A disconnected peer - filter it out
+                // 3. A peer that hasn't created participant record yet - but should be filtered anyway
+                if (!isInActiveParticipants) {
+                  // Not in active participants - this is an old/disconnected peer
+                  console.log(`Filtering out old/disconnected peer: "${peerName}" (ID: ${keptPeer.id}) - not in active participants`);
+                  return false;
+                }
+                
+                // Peer is in active participants - include it
+                // (We already have tracks check if needed, but being in active participants is sufficient)
+                return true;
+              });
+            })().map((peer) => {
               // peer.videoTrack is a STRING (track ID), not the track object!
               // We need to look it up in the tracks map
               let videoTrack: any = null;
@@ -995,13 +1686,20 @@ function MeetingRoom() {
               }
               
               // Check if this peer is the host
-              // For local peer: compare user ID with meeting host_id
-              const isLocalHost = peer.id === localPeer?.id && user?.id === meeting.host_id;
+              // Multiple ways to identify host:
+              // 1. Local peer and current user is host
+              // 2. Peer name matches host email (if host used email as display name)
+              // 3. Peer name matches stored host display name (if host already joined)
+              // 4. Compare peer names more flexibly (case-insensitive, partial match)
+              const isPeerHost = 
+                (peer.id === localPeer?.id && user?.id === meeting.host_id) || // Local peer is host
+                (meeting.host_email && peer.name?.toLowerCase() === meeting.host_email.toLowerCase()) || // Remote peer name matches host email
+                (hostDisplayName && peer.name?.toLowerCase() === hostDisplayName.toLowerCase()) || // Remote peer name matches host display name
+                (meeting.host_email && peer.name?.toLowerCase().includes(meeting.host_email.split("@")[0]?.toLowerCase() || "")) || // Partial match with host email username
+                (hostDisplayName && peer.name?.toLowerCase().includes(hostDisplayName.toLowerCase())); // Partial match with host display name
               
-              // For remote peers: we can't reliably determine host status from HMS alone
-              // But we can show host badge for local peer when they are the host
-              // Note: To properly show host status for all peers, we'd need to store/compare Supabase user IDs
-              const isHost = isLocalHost;
+              // Check if current user is host (for remote controls)
+              const currentUserIsHost = user?.id === meeting.host_id;
               
               return (
                 <div
@@ -1012,10 +1710,13 @@ function MeetingRoom() {
                     track={videoTrack} 
                     peer={peer} 
                     localPeerId={localPeer?.id}
-                    isHost={isHost}
+                    isHost={isPeerHost}
+                    isLocalHost={currentUserIsHost}
                     audioTrack={audioTrack}
                     onToggleAudio={peer.id === localPeer?.id ? handleToggleAudio : undefined}
                     onToggleVideo={peer.id === localPeer?.id ? handleToggleVideo : undefined}
+                    onToggleRemoteAudio={currentUserIsHost && peer.id !== localPeer?.id ? handleToggleRemoteAudio : undefined}
+                    onToggleRemoteVideo={currentUserIsHost && peer.id !== localPeer?.id ? handleToggleRemoteVideo : undefined}
                   />
                 </div>
               );
