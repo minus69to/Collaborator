@@ -49,7 +49,24 @@ export async function GET() {
     );
 
     // Get meeting details for all participations
-    const participationMeetings = participations?.map((p) => {
+    // Group by meeting_id and keep only the most recent participation for each meeting
+    const participationMap = new Map<string, {
+      meeting: {
+        id: string;
+        title: string;
+        description?: string | null;
+        status: string;
+        created_at: string;
+        ended_at?: string | null;
+        host_id: string;
+      };
+      role: "host" | "participant";
+      display_name: string | null;
+      joined_at: string;
+      left_at: string | null;
+    }>();
+
+    participations?.forEach((p) => {
       const meeting = p.meetings as {
         id: string;
         title: string;
@@ -59,22 +76,32 @@ export async function GET() {
         ended_at?: string | null;
         host_id: string;
       };
-      return {
-        meeting: {
-          id: meeting.id,
-          title: meeting.title,
-          description: meeting.description,
-          status: meeting.status,
-          created_at: meeting.created_at,
-          ended_at: meeting.ended_at,
-          host_id: meeting.host_id,
-        },
-        role: p.role,
-        display_name: p.display_name,
-        joined_at: p.joined_at,
-        left_at: p.left_at,
-      };
-    }) || [];
+      
+      const meetingId = meeting.id;
+      const existing = participationMap.get(meetingId);
+      
+      // If this meeting is not in map, add it
+      // If it exists, replace only if this participation is more recent (joined_at is later)
+      if (!existing || new Date(p.joined_at).getTime() > new Date(existing.joined_at).getTime()) {
+        participationMap.set(meetingId, {
+          meeting: {
+            id: meeting.id,
+            title: meeting.title,
+            description: meeting.description,
+            status: meeting.status,
+            created_at: meeting.created_at,
+            ended_at: meeting.ended_at,
+            host_id: meeting.host_id,
+          },
+          role: p.role,
+          display_name: p.display_name,
+          joined_at: p.joined_at,
+          left_at: p.left_at,
+        });
+      }
+    });
+
+    const participationMeetings = Array.from(participationMap.values());
 
     // Add meetings where user is host but hasn't joined yet (created but not participated)
     const hostedMeetingsNotJoined = hostedMeetings
