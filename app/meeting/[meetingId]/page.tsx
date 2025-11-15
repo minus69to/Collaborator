@@ -213,7 +213,8 @@ function VideoTile({
               {/* Mic Icon - Clickable for local user or host */}
               {(isLocal || (isLocalHost && !isLocal)) ? (
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent tile maximize on button click
                     if (isLocal && onToggleAudio) {
                       onToggleAudio();
                     } else if (isLocalHost && !isLocal && onToggleRemoteAudio) {
@@ -262,7 +263,8 @@ function VideoTile({
               {/* Camera Icon - Clickable for local user or host */}
               {(isLocal || (isLocalHost && !isLocal)) ? (
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent tile maximize on button click
                     if (isLocal && onToggleVideo) {
                       onToggleVideo();
                     } else if (isLocalHost && !isLocal && onToggleRemoteVideo) {
@@ -490,6 +492,42 @@ function MeetingRoom() {
   const [isStartingRecording, setIsStartingRecording] = useState(false);
   const [isStoppingRecording, setIsStoppingRecording] = useState(false);
   const [isTogglingPermission, setIsTogglingPermission] = useState(false);
+  
+  // Video tile maximization state
+  const [maximizedPeerId, setMaximizedPeerId] = useState<string | null>(null);
+  
+  // Clear maximized state if the maximized peer leaves
+  useEffect(() => {
+    if (maximizedPeerId && !peers.find(p => p.id === maximizedPeerId)) {
+      // Maximized peer has left, restore normal view
+      setMaximizedPeerId(null);
+    }
+  }, [maximizedPeerId, peers]);
+  
+  // Toggle maximized state for a peer
+  const handleToggleMaximize = (peerId: string) => {
+    if (maximizedPeerId === peerId) {
+      // If clicking the already maximized tile, restore normal view
+      setMaximizedPeerId(null);
+    } else {
+      // Maximize the clicked tile
+      setMaximizedPeerId(peerId);
+    }
+  };
+  
+  // Calculate optimal grid columns based on participant count
+  const getOptimalGridCols = (count: number): number => {
+    if (count === 0) return 1;
+    if (count === 1) return 1;
+    if (count === 2) return 2;
+    if (count <= 4) return 2;
+    if (count <= 6) return 3;
+    if (count <= 9) return 3;
+    if (count <= 12) return 4;
+    if (count <= 16) return 4;
+    if (count <= 20) return 5;
+    return 6; // Max 6 columns
+  };
 
   useEffect(() => {
     async function fetchMeeting() {
@@ -1830,8 +1868,8 @@ function MeetingRoom() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 bg-slate-900/70 p-4">
+    <div className="flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100">
+      <header className="flex-shrink-0 border-b border-slate-800 bg-slate-900/70 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="text-lg font-semibold">{meeting.title}</h1>
@@ -2102,12 +2140,12 @@ function MeetingRoom() {
           </div>
         )}
       </header>
-      <main className="flex-1 p-6">
-        <div className="mx-auto h-full max-w-7xl">
+      <main className="flex-1 p-6 overflow-hidden">
+        <div className="mx-auto h-full max-w-7xl flex flex-col">
           {/* Video Grid */}
-          <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Filter out duplicate peers and disconnected peers */}
-            {(() => {
+          {(() => {
+            // Filter and process peers first
+            const filteredPeers = (() => {
               // Step 1: Group peers by user_id (if we can identify them) or by name
               // First, try to identify which user_id each peer belongs to
               const peerToUserId = new Map<string, string>(); // peer.id -> user_id
@@ -2267,74 +2305,55 @@ function MeetingRoom() {
                 // (We already have tracks check if needed, but being in active participants is sufficient)
                 return true;
               });
-            })().map((peer) => {
-              // peer.videoTrack is a STRING (track ID), not the track object!
-              // We need to look it up in the tracks map
+            })();
+
+            // Helper function to get tracks for a peer
+            const getPeerTracks = (peer: any) => {
               let videoTrack: any = null;
               let audioTrack: any = null;
               
-              // Check if peer.videoTrack is a string (track ID) or an object
               const videoTrackRef = peer.videoTrack;
               const audioTrackRef = peer.audioTrack;
               
               // Get video track
               if (videoTrackRef) {
                 if (typeof videoTrackRef === "string") {
-                  // It's a track ID string - look it up in tracks map
                   videoTrack = tracksMap?.[videoTrackRef];
-                  if (videoTrack) {
-                    console.log(`Found video track by ID for ${peer.name}:`, videoTrack);
-                  } else {
-                    console.warn(`Track ID ${videoTrackRef} not found in tracks map for ${peer.name}`);
-                  }
                 } else {
-                  // It's already a track object
                   videoTrack = videoTrackRef;
                 }
               }
               
-              // Fallback: Try localVideoTrackID for local peer
               if (!videoTrack && peer.id === localPeer?.id && localVideoTrackID) {
                 videoTrack = tracksMap?.[localVideoTrackID];
-                if (videoTrack) {
-                  console.log(`Found local video track by localVideoTrackID for ${peer.name}:`, videoTrack);
-                }
               }
               
-              // Fallback: Search all tracks for this peer
               if (!videoTrack && tracksMap) {
                 const allTracks = Object.values(tracksMap);
                 const peerTracks = allTracks.filter((track: any) => {
-                  // Check if track belongs to this peer
                   return (track.peerId === peer.id || track.peer?.id === peer.id) && track.type === "video";
                 });
                 if (peerTracks.length > 0) {
                   videoTrack = peerTracks[0] as any;
-                  console.log(`Found video track by peer search for ${peer.name}:`, videoTrack);
                 }
               }
               
               // Get audio track
               if (audioTrackRef) {
                 if (typeof audioTrackRef === "string") {
-                  // It's a track ID string - look it up in tracks map
                   audioTrack = tracksMap?.[audioTrackRef];
                 } else {
-                  // It's already a track object
                   audioTrack = audioTrackRef;
                 }
               }
               
-              // Fallback: Try localAudioTrackID for local peer
               if (!audioTrack && peer.id === localPeer?.id && localAudioTrackID) {
                 audioTrack = tracksMap?.[localAudioTrackID];
               }
               
-              // Fallback: Search all tracks for this peer
               if (!audioTrack && tracksMap) {
                 const allTracks = Object.values(tracksMap);
                 const peerTracks = allTracks.filter((track: any) => {
-                  // Check if track belongs to this peer
                   return (track.peerId === peer.id || track.peer?.id === peer.id) && track.type === "audio";
                 });
                 if (peerTracks.length > 0) {
@@ -2342,32 +2361,41 @@ function MeetingRoom() {
                 }
               }
               
-              // Check if this peer is the host
-              // Multiple ways to identify host:
-              // 1. Local peer and current user is host
-              // 2. Peer name matches host email (if host used email as display name)
-              // 3. Peer name matches stored host display name (if host already joined)
-              // 4. Compare peer names more flexibly (case-insensitive, partial match)
-              const isPeerHost = 
-                (peer.id === localPeer?.id && user?.id === meeting.host_id) || // Local peer is host
-                (meeting.host_email && peer.name?.toLowerCase() === meeting.host_email.toLowerCase()) || // Remote peer name matches host email
-                (hostDisplayName && peer.name?.toLowerCase() === hostDisplayName.toLowerCase()) || // Remote peer name matches host display name
-                (meeting.host_email && peer.name?.toLowerCase().includes(meeting.host_email.split("@")[0]?.toLowerCase() || "")) || // Partial match with host email username
-                (hostDisplayName && peer.name?.toLowerCase().includes(hostDisplayName.toLowerCase())); // Partial match with host display name
-              
-              // Check if current user is host (for remote controls)
-              const currentUserIsHost = user?.id === meeting.host_id;
+              return { videoTrack, audioTrack };
+            };
+            
+            // Helper function to check if peer is host
+            const isPeerHost = (peer: any) => {
+              return (
+                (peer.id === localPeer?.id && user?.id === meeting.host_id) ||
+                (meeting.host_email && peer.name?.toLowerCase() === meeting.host_email.toLowerCase()) ||
+                (hostDisplayName && peer.name?.toLowerCase() === hostDisplayName.toLowerCase()) ||
+                (meeting.host_email && peer.name?.toLowerCase().includes(meeting.host_email.split("@")[0]?.toLowerCase() || "")) ||
+                (hostDisplayName && peer.name?.toLowerCase().includes(hostDisplayName.toLowerCase()))
+              );
+            };
+            
+            const currentUserIsHost = user?.id === meeting.host_id;
+            
+            // Render video tile component
+            const renderVideoTile = (peer: any, isMaximized = false) => {
+              const { videoTrack, audioTrack } = getPeerTracks(peer);
+              const isPeerHostValue = isPeerHost(peer);
               
               return (
                 <div
                   key={peer.id}
-                  className="relative flex aspect-video items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-lg"
+                  onClick={() => handleToggleMaximize(peer.id)}
+                  className={`relative flex items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-lg cursor-pointer transition-all hover:border-sky-500 hover:shadow-xl h-full w-full ${
+                    isMaximized ? 'ring-2 ring-sky-500' : ''
+                  }`}
+                  title={isMaximized ? "Click to restore normal view" : "Click to maximize"}
                 >
                   <VideoTile 
                     track={videoTrack} 
                     peer={peer} 
                     localPeerId={localPeer?.id}
-                    isHost={isPeerHost}
+                    isHost={isPeerHostValue}
                     isLocalHost={currentUserIsHost}
                     audioTrack={audioTrack}
                     onToggleAudio={peer.id === localPeer?.id ? handleToggleAudio : undefined}
@@ -2378,16 +2406,73 @@ function MeetingRoom() {
                   />
                 </div>
               );
-            })}
-            {peers.length === 0 && (
-              <div className="col-span-full flex h-full items-center justify-center">
-                <div className="text-center">
-                  <div className="mb-4 text-6xl">👥</div>
-                  <p className="text-slate-400">Waiting for participants...</p>
+            };
+            
+            // Handle empty state
+            if (filteredPeers.length === 0) {
+              return (
+                <div className="flex h-full items-center justify-center">
+                  <div className="text-center">
+                    <div className="mb-4 text-6xl">👥</div>
+                    <p className="text-slate-400">Waiting for participants...</p>
+                  </div>
                 </div>
+              );
+            }
+            
+            // Maximized mode: show large tile on left + small tiles for others on right
+            if (maximizedPeerId) {
+              const maximizedPeer = filteredPeers.find(p => p.id === maximizedPeerId);
+              const otherPeers = filteredPeers.filter(p => p.id !== maximizedPeerId);
+              
+              if (!maximizedPeer) {
+                // Peer was removed, restore normal view
+                setMaximizedPeerId(null);
+                return null;
+              }
+              
+              return (
+                <div className="flex h-full flex-row gap-2">
+                  {/* Maximized tile - takes 75% of width */}
+                  <div className="flex-1 min-w-0" style={{ flexBasis: '75%' }}>
+                    {renderVideoTile(maximizedPeer, true)}
+                  </div>
+                  
+                  {/* Other participants - small tiles in a vertical column */}
+                  {otherPeers.length > 0 && (
+                    <div className="flex flex-col gap-2 overflow-y-auto" style={{ flexBasis: '25%', width: '25%' }}>
+                      {otherPeers.map((peer) => (
+                        <div key={peer.id} className="flex-shrink-0" style={{ aspectRatio: '16/9' }}>
+                          {renderVideoTile(peer, false)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            
+            // Normal mode: proportional grid that fits within viewport
+            const gridCols = getOptimalGridCols(filteredPeers.length);
+            const gridRows = Math.ceil(filteredPeers.length / gridCols);
+            const gridColsClass = {
+              1: 'grid-cols-1',
+              2: 'grid-cols-1 md:grid-cols-2',
+              3: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
+              4: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4',
+              5: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5',
+              6: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6',
+            }[gridCols] || 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+            
+            // Use auto-rows to make tiles fit within available height
+            const gridRowsClass = `grid-rows-${gridRows}`;
+            
+            return (
+              <div className={`grid h-full gap-2 ${gridColsClass} auto-rows-fr`} style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
+                {filteredPeers.map((peer) => renderVideoTile(peer, false))}
               </div>
-            )}
-          </div>
+            );
+          })()}
         </div>
       </main>
       
