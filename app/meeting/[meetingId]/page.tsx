@@ -1177,8 +1177,27 @@ function MeetingRoom() {
       const response = await fetch(`/api/files/download?fileId=${fileId}`);
       if (response.ok) {
         const data = await response.json();
-        // Open download URL
-        window.open(data.file.download_url, "_blank");
+        // Fetch the file as a blob to force download (works with cross-origin URLs)
+        const fileResponse = await fetch(data.file.download_url);
+        const blob = await fileResponse.blob();
+        
+        // Create object URL from blob
+        const blobUrl = window.URL.createObjectURL(blob);
+        
+        // Create a temporary anchor element to force download
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        // Append to body, click, then remove
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up object URL after a short delay
+        setTimeout(() => {
+          window.URL.revokeObjectURL(blobUrl);
+        }, 100);
       } else {
         const errorData = await response.json();
         setError(errorData.error || "Failed to download file");

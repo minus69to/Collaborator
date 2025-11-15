@@ -60,6 +60,18 @@ type ChatMessage = {
   created_at: string;
 };
 
+type FileRecord = {
+  id: string;
+  meeting_id: string;
+  user_id: string;
+  display_name: string;
+  file_name: string;
+  file_path: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_at: string;
+};
+
 export default function DashboardPage() {
   const { status, user } = useUser();
   const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
@@ -71,6 +83,11 @@ export default function DashboardPage() {
   const [chatMessages, setChatMessages] = useState<Map<string, ChatMessage[]>>(new Map());
   const [loadingChat, setLoadingChat] = useState<Set<string>>(new Set());
   const chatEndRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  
+  // Files history state
+  const [expandedFilesMeetings, setExpandedFilesMeetings] = useState<Set<string>>(new Set());
+  const [meetingFiles, setMeetingFiles] = useState<Map<string, FileRecord[]>>(new Map());
+  const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -181,6 +198,107 @@ export default function DashboardPage() {
         }
         return newSet;
       });
+    }
+  }
+
+  // Fetch files for a meeting
+  async function fetchFilesHistory(meetingId: string) {
+    if (meetingFiles.has(meetingId)) {
+      // Already loaded, just toggle visibility
+      setExpandedFilesMeetings(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(meetingId)) {
+          newSet.delete(meetingId);
+        } else {
+          newSet.add(meetingId);
+        }
+        return newSet;
+      });
+      return;
+    }
+
+    setLoadingFiles(prev => new Set(prev).add(meetingId));
+    try {
+      const response = await fetch(`/api/files/list?meetingId=${meetingId}`);
+      if (response.ok) {
+        const data = await response.json();
+        const files = data.files || [];
+        setMeetingFiles(prev => {
+          const newMap = new Map(prev);
+          newMap.set(meetingId, files);
+          return newMap;
+        });
+        // Expand files history after loading
+        setExpandedFilesMeetings(prev => new Set(prev).add(meetingId));
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to fetch files history:", errorData.error);
+      }
+    } catch (err) {
+      console.error("Error fetching files history:", err);
+    } finally {
+      setLoadingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(meetingId);
+        return newSet;
+      });
+    }
+  }
+
+  // Toggle files history visibility
+  function toggleFilesHistory(meetingId: string) {
+    if (!meetingFiles.has(meetingId)) {
+      // Not loaded yet, fetch it
+      fetchFilesHistory(meetingId);
+    } else {
+      // Already loaded, just toggle visibility
+      setExpandedFilesMeetings(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(meetingId)) {
+          newSet.delete(meetingId);
+        } else {
+          newSet.add(meetingId);
+        }
+        return newSet;
+      });
+    }
+  }
+
+  // Handle file download
+  async function handleFileDownload(fileId: string, fileName: string) {
+    try {
+      const response = await fetch(`/api/files/download?fileId=${fileId}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Fetch the file as a blob to force download (works with cross-origin URLs)
+        const fileResponse = await fetch(data.file.download_url);
+        const blob = await fileResponse.blob();
+        
+        // Create object URL from blob
+        const blobUrl = window.URL.createObjectURL(blob);
+        
+        // Create a temporary anchor element to force download
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        // Append to body, click, then remove
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up object URL after a short delay
+        setTimeout(() => {
+          window.URL.revokeObjectURL(blobUrl);
+        }, 100);
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to download file:", errorData.error);
+        alert(errorData.error || "Failed to download file");
+      }
+    } catch (err) {
+      console.error("Error downloading file:", err);
+      alert("Failed to download file");
     }
   }
 
@@ -313,17 +431,21 @@ export default function DashboardPage() {
                         ) : (
                           "View Chat History"
                         )}
-                        {(() => {
-                          const messages = chatMessages.get(record.meeting.id);
-                          if (messages && messages.length > 0) {
-                            return (
-                              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-bold">
-                                {messages.length}
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
+                      </button>
+                      
+                      <button
+                        onClick={() => toggleFilesHistory(record.meeting.id)}
+                        className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                        disabled={loadingFiles.has(record.meeting.id)}
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                        </svg>
+                        {loadingFiles.has(record.meeting.id) ? (
+                          "Loading..."
+                        ) : (
+                          "View Files"
+                        )}
                       </button>
                     </div>
                   </div>
@@ -435,6 +557,137 @@ export default function DashboardPage() {
                   {messages && messages.length > 0 
                     ? `${messages.length} message${messages.length === 1 ? '' : 's'}`
                     : 'No messages'}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      
+      {/* Files History Modal */}
+      {Array.from(expandedFilesMeetings).map((meetingId) => {
+        const files = meetingFiles.get(meetingId);
+        const meeting = meetings.find(r => r.meeting.id === meetingId);
+        
+        return (
+          <div key={meetingId}>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              onClick={() => toggleFilesHistory(meetingId)}
+            />
+            
+            {/* Modal */}
+            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">
+                    Files
+                  </h2>
+                  {meeting && (
+                    <p className="text-sm text-slate-400 mt-1">
+                      {meeting.meeting.title}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => toggleFilesHistory(meetingId)}
+                  className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+                  title="Close"
+                >
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Files List */}
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                {!files || files.length === 0 ? (
+                  <div className="flex h-full items-center justify-center">
+                    <p className="text-center text-slate-400">No files uploaded for this meeting.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {files.map((file: FileRecord) => {
+                      const isLocalFile = file.user_id === user?.id;
+                      const timestamp = new Date(file.uploaded_at);
+                      const dateString = timestamp.toLocaleDateString();
+                      const timeString = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      const fileSizeMB = (file.file_size / 1024 / 1024).toFixed(2);
+                      
+                      // Get file icon based on mime type
+                      const getFileIcon = (mimeType: string) => {
+                        if (mimeType.startsWith('image/')) return '🖼️';
+                        if (mimeType.startsWith('video/')) return '🎥';
+                        if (mimeType.startsWith('audio/')) return '🎵';
+                        if (mimeType.includes('pdf')) return '📄';
+                        if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+                        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
+                        if (mimeType.includes('zip') || mimeType.includes('archive')) return '📦';
+                        return '📎';
+                      };
+                      
+                      return (
+                        <div
+                          key={file.id}
+                          className="flex items-start gap-3 rounded-lg border border-slate-700 bg-slate-900/50 p-3 transition hover:bg-slate-900"
+                        >
+                          {/* File Icon */}
+                          <div className="flex-shrink-0 text-2xl">
+                            {getFileIcon(file.mime_type)}
+                          </div>
+                          
+                          {/* File Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-white truncate" title={file.file_name}>
+                                  {file.file_name}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-slate-400">
+                                    {isLocalFile ? 'You' : file.display_name}
+                                  </span>
+                                  <span className="text-xs text-slate-500">•</span>
+                                  <span className="text-xs text-slate-400">
+                                    {dateString} {timeString}
+                                  </span>
+                                  <span className="text-xs text-slate-500">•</span>
+                                  <span className="text-xs text-slate-400">
+                                    {fileSizeMB} MB
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Actions */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleFileDownload(file.id, file.file_name)}
+                              className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-blue-400"
+                              title="Download"
+                            >
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer with file count */}
+              <div className="border-t border-slate-700 px-6 py-3">
+                <p className="text-xs text-slate-400 text-center">
+                  {files && files.length > 0 
+                    ? `${files.length} file${files.length === 1 ? '' : 's'}`
+                    : 'No files'}
                 </p>
               </div>
             </div>
