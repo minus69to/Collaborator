@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Get 100ms Recording Details</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .container {
+      background: #1e293b;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    h1 {
+      margin-top: 0;
+      color: #60a5fa;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #cbd5e1;
+      font-weight: 500;
+    }
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 6px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 13px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success {
+      border-color: #22c55e;
+      color: #86efac;
+    }
+    .error {
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
+    .info {
+      background: #1e40af;
+      color: #93c5fd;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .recording-url {
+      word-break: break-all;
+      margin-top: 10px;
+      padding: 10px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 4px;
+    }
+    a {
+      color: #60a5fa;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Get 100ms Recording Details</h1>
+    
+    <div class="info">
+      <strong>ℹ️ Instructions:</strong><br>
+      1. Copy the <strong>Recording ID</strong> from the "Start Recording" response (e.g., <code>69185054cdada8de84671d12</code>)<br>
+      2. Paste it in the input field below (NOT the Meeting ID!)<br>
+      3. Click "Get Recording" to fetch recording details<br>
+      4. The recording URL will be available once processing is complete<br>
+      <br>
+      <strong>Note:</strong> Recordings take a few minutes to process after stopping. 
+      Check the status - it should be "ready" or "completed" for the URL to be available.
+      <br><br>
+      <strong style="color: #fca5a5;">⚠️ Important:</strong> Use the Recording ID (24-char hex string), not the Meeting ID (UUID format)!
+    </div>
+
+    <div class="form-group">
+      <label for="recordingId">Recording ID (from Start Recording response)</label>
+      <input type="text" id="recordingId" placeholder="Enter recording ID (e.g., 69185054cdada8de84671d12)" required>
+    </div>
+
+    <div>
+      <button onclick="getRecording()">🔍 Get Recording</button>
+      <button onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    function showResult(data, isError = false) {
+      const resultsDiv = document.getElementById('results');
+      const resultDiv = document.createElement('div');
+      resultDiv.className = `result ${isError ? 'error' : 'success'}`;
+      
+      let content = JSON.stringify(data, null, 2);
+      
+      // If there's a URL, make it clickable
+      if (data.recording && data.recording.url) {
+        content += '\n\n📹 Recording URL:\n';
+        content += data.recording.url;
+      }
+      
+      resultDiv.innerHTML = '<pre>' + content + '</pre>';
+      
+      // Add clickable URL link if available
+      if (data.recording && data.recording.url) {
+        const urlDiv = document.createElement('div');
+        urlDiv.className = 'recording-url';
+        urlDiv.innerHTML = `<strong>🎥 Recording:</strong> <a href="${data.recording.url}" target="_blank">${data.recording.url}</a>`;
+        resultDiv.appendChild(urlDiv);
+      }
+      
+      resultsDiv.appendChild(resultDiv);
+      resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function showError(error) {
+      const resultsDiv = document.getElementById('results');
+      const resultDiv = document.createElement('div');
+      resultDiv.className = 'result error';
+      resultDiv.textContent = `❌ Error: ${error.message || JSON.stringify(error, null, 2)}`;
+      resultsDiv.appendChild(resultDiv);
+      resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function getRecording() {
+      const recordingId = document.getElementById('recordingId').value.trim();
+      if (!recordingId) {
+        showError({ message: 'Recording ID is required' });
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/api/recordings/get?recordingId=${encodeURIComponent(recordingId)}`);
+        const data = await response.json();
+        
+        if (response.ok && data.ok) {
+          showResult({
+            status: '✅ SUCCESS',
+            message: data.message || 'Recording details retrieved',
+            recording: data.recording,
+          }, false);
+        } else {
+          // Show more detailed error information
+          const errorData = {
+            status: '❌ FAILED',
+            error: data.error || 'Failed to get recording',
+            recordingId: data.recordingId,
+          };
+          
+          // Add details if available
+          if (data.details) {
+            errorData.details = data.details;
+          }
+          
+          // Check if it might be a meeting ID instead of recording ID
+          if (recordingId && recordingId.includes('-') && recordingId.length > 30) {
+            errorData.hint = '⚠️ This looks like a Meeting ID, not a Recording ID. Use the "id" from the Start Recording response.';
+          }
+          
+          showResult(errorData, true);
+        }
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    function clearResults() {
+      document.getElementById('results').innerHTML = '';
+    }
+  </script>
+</body>
+</html>
+

@@ -481,6 +481,15 @@ function MeetingRoom() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [canRecord, setCanRecord] = useState(false);
+  const [allowParticipantsToRecord, setAllowParticipantsToRecord] = useState(false);
+  const [activeRecording, setActiveRecording] = useState<any>(null);
+  const [isStartingRecording, setIsStartingRecording] = useState(false);
+  const [isStoppingRecording, setIsStoppingRecording] = useState(false);
+  const [isTogglingPermission, setIsTogglingPermission] = useState(false);
 
   useEffect(() => {
     async function fetchMeeting() {
@@ -1248,6 +1257,132 @@ function MeetingRoom() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, meeting?.id]);
 
+  // Fetch recording status
+  async function fetchRecordingStatus() {
+    if (!meeting?.id || !isConnected) {
+      setIsRecording(false);
+      setActiveRecording(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/recordings/status?meetingId=${meeting.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok) {
+          setCanRecord(data.canRecord || false);
+          setAllowParticipantsToRecord(data.allowParticipantsToRecord || false);
+          setIsRecording(data.isRecording || false);
+          setActiveRecording(data.activeRecording || null);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching recording status:", err);
+    }
+  }
+
+  // Start recording
+  async function handleStartRecording() {
+    if (!meeting?.id || !canRecord || isStartingRecording || isRecording) return;
+
+    setIsStartingRecording(true);
+    try {
+      const response = await fetch("/api/recordings/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ meetingId: meeting.id }),
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        await fetchRecordingStatus();
+      } else {
+        alert(data.error || "Failed to start recording");
+      }
+    } catch (err) {
+      console.error("Error starting recording:", err);
+      alert("Failed to start recording");
+    } finally {
+      setIsStartingRecording(false);
+    }
+  }
+
+  // Stop recording
+  async function handleStopRecording() {
+    if (!meeting?.id || !canRecord || isStoppingRecording || !isRecording) return;
+
+    setIsStoppingRecording(true);
+    try {
+      const response = await fetch("/api/recordings/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          meetingId: meeting.id,
+          recordingId: activeRecording?.id || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        await fetchRecordingStatus();
+      } else {
+        alert(data.error || "Failed to stop recording");
+      }
+    } catch (err) {
+      console.error("Error stopping recording:", err);
+      alert("Failed to stop recording");
+    } finally {
+      setIsStoppingRecording(false);
+    }
+  }
+
+  // Toggle participant recording permission (host only)
+  async function handleTogglePermission() {
+    if (!meeting?.id || !isHost || isTogglingPermission) return;
+
+    setIsTogglingPermission(true);
+    try {
+      const response = await fetch("/api/recordings/permission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          meetingId: meeting.id,
+          allowParticipantsToRecord: !allowParticipantsToRecord,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        setAllowParticipantsToRecord(data.allowParticipantsToRecord);
+      } else {
+        alert(data.error || "Failed to toggle permission");
+      }
+    } catch (err) {
+      console.error("Error toggling permission:", err);
+      alert("Failed to toggle permission");
+    } finally {
+      setIsTogglingPermission(false);
+    }
+  }
+
+  // Poll for recording status when connected
+  useEffect(() => {
+    if (!isConnected || !meeting?.id) {
+      setIsRecording(false);
+      setActiveRecording(null);
+      return;
+    }
+
+    fetchRecordingStatus();
+    // Poll every 2 seconds for recording status
+    const interval = setInterval(() => {
+      fetchRecordingStatus();
+    }, 2000);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, meeting?.id]);
+
   // Host can toggle remote participants' audio/video
   async function handleToggleRemoteAudio(peerId: string, enabled: boolean) {
     if (!isHost || !hmsActions) return;
@@ -1701,6 +1836,22 @@ function MeetingRoom() {
           <div className="flex items-center gap-4">
             <h1 className="text-lg font-semibold">{meeting.title}</h1>
             
+            {/* Recording Status Indicator - visible to all */}
+            {isConnected && isRecording && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-600/90 backdrop-blur-sm border border-red-500/50 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-red-500/20">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute h-3 w-3 rounded-full bg-white animate-ping opacity-75" />
+                  <div className="relative h-2.5 w-2.5 rounded-full bg-white" />
+                </div>
+                <span className="font-semibold">Recording</span>
+                {activeRecording?.startedByName && (
+                  <span className="text-xs text-red-100 bg-red-700/30 px-2 py-0.5 rounded">
+                    by {activeRecording.startedByName}
+                  </span>
+                )}
+              </div>
+            )}
+            
             {/* Raise Hand Button - in header beside meeting name */}
             {isConnected && localPeer && (
               <button
@@ -1742,7 +1893,81 @@ function MeetingRoom() {
             )}
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Recording Controls */}
+            {isConnected && canRecord && (
+              <div className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 backdrop-blur-sm p-1">
+                {/* Start/Stop Recording Button */}
+                {!isRecording ? (
+                  <button
+                    onClick={handleStartRecording}
+                    disabled={isStartingRecording || !canRecord}
+                    className={`group relative flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 ${
+                      isStartingRecording
+                        ? "bg-slate-600/50 cursor-not-allowed opacity-60"
+                        : "bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 shadow-lg shadow-red-500/30 hover:shadow-red-500/40 hover:scale-105 active:scale-95"
+                    }`}
+                    title="Start Recording"
+                  >
+                    <svg className="h-4 w-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
+                      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                      <circle cx="10" cy="10" r="3.5" fill="currentColor" />
+                    </svg>
+                    <span>{isStartingRecording ? "Starting..." : "Start Recording"}</span>
+                    {!isStartingRecording && (
+                      <div className="absolute inset-0 rounded-lg bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStopRecording}
+                    disabled={isStoppingRecording || !canRecord}
+                    className={`group relative flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 ${
+                      isStoppingRecording
+                        ? "bg-slate-600/50 cursor-not-allowed opacity-60"
+                        : "bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 shadow-lg shadow-slate-700/30 hover:shadow-slate-600/40 hover:scale-105 active:scale-95 border border-slate-600/50"
+                    }`}
+                    title="Stop Recording"
+                  >
+                    <svg className="h-4 w-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
+                      <rect x="6" y="6" width="8" height="8" rx="1.5" fill="currentColor" />
+                    </svg>
+                    <span>{isStoppingRecording ? "Stopping..." : "Stop Recording"}</span>
+                    {!isStoppingRecording && (
+                      <div className="absolute inset-0 rounded-lg bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </button>
+                )}
+                
+                {/* Permission Toggle Button (Host only) */}
+                {isHost && (
+                  <button
+                    onClick={handleTogglePermission}
+                    disabled={isTogglingPermission}
+                    className={`group relative flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                      allowParticipantsToRecord
+                        ? "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40"
+                        : "bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white border border-slate-600/50"
+                    } ${isTogglingPermission ? "opacity-50 cursor-not-allowed" : "hover:scale-105 active:scale-95"}`}
+                    title={allowParticipantsToRecord ? "Disable participant recording" : "Enable participant recording"}
+                  >
+                    {allowParticipantsToRecord ? (
+                      <svg className="h-4 w-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg className="h-4 w-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    <span className="hidden sm:inline">
+                      {allowParticipantsToRecord ? "All Can Record" : "Host Only"}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+            
             {isHost && pendingRequests.length > 0 && (
               <button
                 onClick={() => setShowHostPanel(!showHostPanel)}
