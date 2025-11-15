@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Chat Messages API</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .container {
+      background: #1e293b;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    h1 {
+      margin-top: 0;
+      color: #60a5fa;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #cbd5e1;
+      font-weight: 500;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+      font-family: monospace;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 6px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 13px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success {
+      border-color: #22c55e;
+      color: #86efac;
+    }
+    .error {
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
+    .info {
+      background: #1e40af;
+      color: #93c5fd;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .messages-list {
+      margin-top: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .message-item {
+      padding: 10px;
+      margin-bottom: 10px;
+      background: #0f172a;
+      border-left: 3px solid #3b82f6;
+      border-radius: 4px;
+    }
+    .message-header {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 5px;
+    }
+    .message-body {
+      color: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Chat Messages API Tester</h1>
+    
+    <div class="info">
+      <strong>ℹ️ Instructions:</strong><br>
+      1. Make sure you're logged in and have a meeting ID<br>
+      2. Enter your meeting ID below<br>
+      3. Test GET to fetch existing messages<br>
+      4. Test POST to send a new message
+    </div>
+
+    <div class="form-group">
+      <label for="meetingId">Meeting ID *</label>
+      <input type="text" id="meetingId" placeholder="Enter meeting UUID" required>
+    </div>
+
+    <div class="form-group">
+      <label for="displayName">Display Name (for sending messages)</label>
+      <input type="text" id="displayName" placeholder="Your name" value="Test User">
+    </div>
+
+    <div class="form-group">
+      <label for="message">Message (for sending)</label>
+      <textarea id="message" placeholder="Enter your message here..."></textarea>
+    </div>
+
+    <div>
+      <button onclick="testGetMessages()">📥 Test GET Messages</button>
+      <button onclick="testPostMessage()">📤 Test POST Message</button>
+      <button onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    function showResult(data, isError = false) {
+      const resultsDiv = document.getElementById('results');
+      const resultDiv = document.createElement('div');
+      resultDiv.className = `result ${isError ? 'error' : 'success'}`;
+      
+      if (!isError && data.messages) {
+        // Show messages in a nice list
+        let html = '<div class="messages-list">';
+        html += `<strong>✅ Success! Found ${data.messages.length} message(s):</strong><br><br>`;
+        
+        if (data.messages.length === 0) {
+          html += '<div class="message-item">No messages yet.</div>';
+        } else {
+          data.messages.forEach(msg => {
+            const date = new Date(msg.created_at).toLocaleString();
+            html += `
+              <div class="message-item">
+                <div class="message-header">${msg.display_name} • ${date}</div>
+                <div class="message-body">${escapeHtml(msg.message)}</div>
+              </div>
+            `;
+          });
+        }
+        
+        html += '</div>';
+        html += '<br><strong>Raw JSON:</strong><br>';
+        html += escapeHtml(JSON.stringify(data, null, 2));
+        resultDiv.innerHTML = html;
+      } else if (!isError && data.message) {
+        // Show single message response
+        let html = '<div class="messages-list">';
+        html += '<strong>✅ Message sent successfully!</strong><br><br>';
+        html += `
+          <div class="message-item">
+            <div class="message-header">${data.message.display_name} • ${new Date(data.message.created_at).toLocaleString()}</div>
+            <div class="message-body">${escapeHtml(data.message.message)}</div>
+          </div>
+        `;
+        html += '</div>';
+        html += '<br><strong>Raw JSON:</strong><br>';
+        html += escapeHtml(JSON.stringify(data, null, 2));
+        resultDiv.innerHTML = html;
+      } else {
+        resultDiv.textContent = JSON.stringify(data, null, 2);
+      }
+      
+      resultsDiv.appendChild(resultDiv);
+      resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function showError(error) {
+      const resultsDiv = document.getElementById('results');
+      const resultDiv = document.createElement('div');
+      resultDiv.className = 'result error';
+      resultDiv.textContent = `❌ Error: ${error.message || JSON.stringify(error, null, 2)}`;
+      resultsDiv.appendChild(resultDiv);
+      resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    async function testGetMessages() {
+      const meetingId = document.getElementById('meetingId').value.trim();
+      
+      if (!meetingId) {
+        showError({ message: 'Meeting ID is required' });
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/api/messages?meetingId=${encodeURIComponent(meetingId)}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult(data, false);
+        } else {
+          showResult(data, true);
+        }
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    async function testPostMessage() {
+      const meetingId = document.getElementById('meetingId').value.trim();
+      const displayName = document.getElementById('displayName').value.trim();
+      const message = document.getElementById('message').value.trim();
+
+      if (!meetingId) {
+        showError({ message: 'Meeting ID is required' });
+        return;
+      }
+
+      if (!message) {
+        showError({ message: 'Message is required' });
+        return;
+      }
+
+      if (!displayName) {
+        showError({ message: 'Display Name is required' });
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/api/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            meetingId,
+            message,
+            displayName,
+          }),
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult(data, false);
+          // Clear message input
+          document.getElementById('message').value = '';
+          // Refresh messages list after a short delay
+          setTimeout(testGetMessages, 500);
+        } else {
+          showResult(data, true);
+        }
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    function clearResults() {
+      document.getElementById('results').innerHTML = '';
+    }
+
+    // Allow Enter key to submit message
+    document.getElementById('message').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        testPostMessage();
+      }
+    });
+  </script>
+</body>
+</html>
+

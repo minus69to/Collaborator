@@ -464,6 +464,15 @@ function MeetingRoom() {
   const [showParticipantsList, setShowParticipantsList] = useState(false);
   const [raisedHands, setRaisedHands] = useState<Map<string, boolean>>(new Map()); // peer.id -> isRaised
   const [participantsWithEmails, setParticipantsWithEmails] = useState<any[]>([]); // Store participants with emails
+  
+  // Chat state
+  const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatMessageInput, setChatMessageInput] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [lastMessageId, setLastMessageId] = useState<string | null>(null);
+  const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
+  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function fetchMeeting() {
@@ -961,6 +970,114 @@ function MeetingRoom() {
       setError("Failed to update join request");
     }
   }
+
+  // Fetch chat messages
+  async function fetchChatMessages() {
+    if (!meeting?.id || !isConnected) return;
+
+    try {
+      const response = await fetch(`/api/messages?meetingId=${meeting.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        const messages = data.messages || [];
+        
+        // Track last message ID to detect new messages
+        if (messages.length > 0) {
+          const latestId = messages[messages.length - 1].id;
+          const hadNewMessage = latestId !== lastMessageId;
+          
+          setChatMessages(messages);
+          
+          if (hadNewMessage) {
+            setLastMessageId(latestId);
+            // Auto-scroll to bottom if chat is open
+            if (showChat) {
+              setTimeout(() => {
+                chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }, 100);
+            }
+          }
+        } else {
+          setChatMessages([]);
+          setLastMessageId(null);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching chat messages:", err);
+    }
+  }
+
+  // Send chat message
+  async function handleSendMessage(e?: FormEvent) {
+    e?.preventDefault();
+    
+    if (!meeting?.id || !chatMessageInput.trim() || !displayName.trim() || isSendingMessage) return;
+
+    const messageText = chatMessageInput.trim();
+    setChatMessageInput("");
+    setIsSendingMessage(true);
+
+    try {
+      const response = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          meetingId: meeting.id,
+          message: messageText,
+          displayName: displayName.trim(),
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh messages immediately after sending
+        await fetchChatMessages();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to send message");
+        // Restore message input on error
+        setChatMessageInput(messageText);
+      }
+    } catch (err) {
+      console.error("Error sending message:", err);
+      setError("Failed to send message");
+      // Restore message input on error
+      setChatMessageInput(messageText);
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }
+
+  // Auto-scroll chat to bottom when opened and mark messages as read
+  useEffect(() => {
+    if (showChat && chatMessages.length > 0) {
+      setTimeout(() => {
+        chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      // Mark all messages as read when chat is opened
+      const latestId = chatMessages[chatMessages.length - 1].id;
+      setLastReadMessageId(latestId);
+    }
+  }, [showChat, chatMessages.length]);
+
+  // Poll for chat messages when connected
+  useEffect(() => {
+    if (!isConnected || !meeting?.id) {
+      setChatMessages([]);
+      setLastMessageId(null);
+      return;
+    }
+
+    // Fetch immediately
+    fetchChatMessages();
+
+    // Poll every 2 seconds for new messages
+    const interval = setInterval(() => {
+      fetchChatMessages();
+    }, 2000);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, meeting?.id, lastMessageId, showChat]);
 
   // Host can toggle remote participants' audio/video
   async function handleToggleRemoteAudio(peerId: string, enabled: boolean) {
@@ -1471,6 +1588,47 @@ function MeetingRoom() {
               </button>
             )}
             
+            {/* Chat Button */}
+            <button
+              onClick={() => setShowChat(true)}
+              className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+            >
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+              </svg>
+              Chat
+              {(() => {
+                // Count unread messages (messages after last read)
+                let unreadCount = 0;
+                if (chatMessages.length > 0) {
+                  if (!lastReadMessageId) {
+                    // No messages read yet - all are unread
+                    unreadCount = chatMessages.length;
+                  } else {
+                    // Find index of last read message
+                    const lastReadIndex = chatMessages.findIndex((m: any) => m.id === lastReadMessageId);
+                    if (lastReadIndex === -1) {
+                      // Last read message not found - all are unread
+                      unreadCount = chatMessages.length;
+                    } else {
+                      // Count messages after last read
+                      unreadCount = chatMessages.length - lastReadIndex - 1;
+                    }
+                  }
+                }
+                
+                // Show badge if there are unread messages when chat is closed
+                if (!showChat && unreadCount > 0) {
+                  return (
+                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-bold">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+            </button>
+            
             {/* Participants List Button */}
             <button
               onClick={() => setShowParticipantsList(true)}
@@ -1966,6 +2124,112 @@ function MeetingRoom() {
                   <p className="text-center py-8 text-sm text-slate-400">No participants</p>
                 )}
               </div>
+            </div>
+          </div>
+        </>
+      )}
+      
+      {/* Chat Modal */}
+      {showChat && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowChat(false)}
+          />
+          
+          {/* Modal */}
+          <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-slate-800 shadow-2xl border-l border-slate-700">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+              <h2 className="text-xl font-semibold text-white">Chat</h2>
+              <button
+                onClick={() => setShowChat(false)}
+                className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+                title="Close"
+              >
+                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Messages List */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+              {chatMessages.length === 0 ? (
+                <div className="flex h-full items-center justify-center">
+                  <p className="text-center text-slate-400">No messages yet. Start the conversation!</p>
+                </div>
+              ) : (
+                chatMessages.map((msg: any) => {
+                  const isLocalMessage = msg.user_id === user?.id;
+                  const avatarColor = getAvatarColor(msg.display_name || "");
+                  const initials = getInitials(msg.display_name || "");
+                  const timestamp = new Date(msg.created_at);
+                  const timeString = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex gap-3 ${isLocalMessage ? 'flex-row-reverse' : ''}`}
+                    >
+                      {/* Avatar */}
+                      <div className={`${avatarColor} flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white`}>
+                        {initials}
+                      </div>
+                      
+                      {/* Message Content */}
+                      <div className={`flex flex-col max-w-[75%] ${isLocalMessage ? 'items-end' : 'items-start'}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold text-white">
+                            {isLocalMessage ? 'You' : msg.display_name}
+                          </span>
+                          <span className="text-xs text-slate-400">{timeString}</span>
+                        </div>
+                        <div className={`rounded-lg px-3 py-2 ${
+                          isLocalMessage 
+                            ? 'bg-blue-600 text-white' 
+                            : 'bg-slate-700 text-slate-100'
+                        }`}>
+                          <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              {/* Scroll anchor */}
+              <div ref={chatMessagesEndRef} />
+            </div>
+            
+            {/* Message Input */}
+            <div className="border-t border-slate-700 p-4">
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatMessageInput}
+                  onChange={(e) => setChatMessageInput(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 rounded-md border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  disabled={isSendingMessage || !isConnected}
+                />
+                <button
+                  type="submit"
+                  disabled={!chatMessageInput.trim() || isSendingMessage || !isConnected}
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed"
+                >
+                  {isSendingMessage ? (
+                    <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                    </svg>
+                  )}
+                </button>
+              </form>
             </div>
           </div>
         </>
