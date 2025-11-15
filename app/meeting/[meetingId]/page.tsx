@@ -334,6 +334,10 @@ function MeetingRoom() {
   const localVideoTrackID = useHMSStore(selectLocalVideoTrackID);
   const localAudioTrackID = useHMSStore(selectLocalAudioTrackID);
   
+  // Screen sharing state
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [screenShareError, setScreenShareError] = useState<string | null>(null);
+  
   // Debug: Log peers and tracks
   useEffect(() => {
     console.log("Peers updated:", peers.length, "peers");
@@ -441,6 +445,73 @@ function MeetingRoom() {
       setTimeout(() => setToggleError(null), 3000);
     }
   };
+
+  // Screen sharing handlers
+  const handleStartScreenShare = async () => {
+    setScreenShareError(null);
+    try {
+      console.log("Starting screen share...");
+      
+      // Check if screen sharing is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        throw new Error("Screen sharing is not supported in this browser");
+      }
+      
+      // Start screen sharing using HMS
+      await hmsActions.setScreenShareEnabled(true);
+      setIsScreenSharing(true);
+      console.log("Screen share started successfully");
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to start screen sharing";
+      console.error("Failed to start screen share:", err);
+      setScreenShareError(errorMsg);
+      setIsScreenSharing(false);
+      // Clear error after 5 seconds
+      setTimeout(() => setScreenShareError(null), 5000);
+    }
+  };
+
+  const handleStopScreenShare = async () => {
+    setScreenShareError(null);
+    try {
+      console.log("Stopping screen share...");
+      await hmsActions.setScreenShareEnabled(false);
+      setIsScreenSharing(false);
+      console.log("Screen share stopped successfully");
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to stop screen sharing";
+      console.error("Failed to stop screen share:", err);
+      setScreenShareError(errorMsg);
+      // Clear error after 5 seconds
+      setTimeout(() => setScreenShareError(null), 5000);
+    }
+  };
+
+  // Monitor screen share state from HMS
+  useEffect(() => {
+    if (!isConnected || !localPeer) return;
+    
+    // Check if local peer has screen share track
+    const checkScreenShare = () => {
+      const allTracks = Object.values(tracksMap || {});
+      const screenShareTrack = allTracks.find((track: any) => 
+        track.peerId === localPeer.id && 
+        track.type === "video" && 
+        track.source === "screen"
+      );
+      
+      const hasScreenShare = !!screenShareTrack;
+      if (hasScreenShare !== isScreenSharing) {
+        setIsScreenSharing(hasScreenShare);
+      }
+    };
+    
+    checkScreenShare();
+    
+    // Check periodically in case HMS state changes
+    const interval = setInterval(checkScreenShare, 1000);
+    return () => clearInterval(interval);
+  }, [isConnected, localPeer, tracksMap, isScreenSharing]);
 
   const [meeting, setMeeting] = useState<{ 
     id: string; 
@@ -1932,6 +2003,35 @@ function MeetingRoom() {
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Screen Share Button */}
+            {isConnected && localPeer && (
+              <>
+                {!isScreenSharing ? (
+                  <button
+                    onClick={handleStartScreenShare}
+                    className="flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-sm font-medium text-white transition hover:bg-blue-500 active:scale-95"
+                    title="Share Screen"
+                  >
+                    <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                    </svg>
+                    <span className="whitespace-nowrap">Share</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStopScreenShare}
+                    className="flex h-9 items-center gap-2 rounded-lg bg-red-600 px-3.5 text-sm font-medium text-white transition hover:bg-red-500 active:scale-95"
+                    title="Stop Sharing Screen"
+                  >
+                    <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+                    </svg>
+                    <span className="whitespace-nowrap">Stop</span>
+                  </button>
+                )}
+              </>
+            )}
+            
             {/* Recording Controls */}
             {isConnected && canRecord && (
               <>
@@ -2311,30 +2411,52 @@ function MeetingRoom() {
             const getPeerTracks = (peer: any) => {
               let videoTrack: any = null;
               let audioTrack: any = null;
+              let screenShareTrack: any = null;
               
               const videoTrackRef = peer.videoTrack;
               const audioTrackRef = peer.audioTrack;
               
-              // Get video track
+              // Get video track (camera, not screen share)
               if (videoTrackRef) {
                 if (typeof videoTrackRef === "string") {
-                  videoTrack = tracksMap?.[videoTrackRef];
-                } else {
+                  const track = tracksMap?.[videoTrackRef];
+                  if (track && track.source !== "screen") {
+                    videoTrack = track;
+                  }
+                } else if (videoTrackRef.source !== "screen") {
                   videoTrack = videoTrackRef;
                 }
               }
               
               if (!videoTrack && peer.id === localPeer?.id && localVideoTrackID) {
-                videoTrack = tracksMap?.[localVideoTrackID];
+                const track = tracksMap?.[localVideoTrackID];
+                if (track && track.source !== "screen") {
+                  videoTrack = track;
+                }
               }
               
               if (!videoTrack && tracksMap) {
                 const allTracks = Object.values(tracksMap);
                 const peerTracks = allTracks.filter((track: any) => {
-                  return (track.peerId === peer.id || track.peer?.id === peer.id) && track.type === "video";
+                  return (track.peerId === peer.id || track.peer?.id === peer.id) && 
+                         track.type === "video" && 
+                         track.source !== "screen";
                 });
                 if (peerTracks.length > 0) {
                   videoTrack = peerTracks[0] as any;
+                }
+              }
+              
+              // Get screen share track
+              if (tracksMap) {
+                const allTracks = Object.values(tracksMap);
+                const screenTracks = allTracks.filter((track: any) => {
+                  return (track.peerId === peer.id || track.peer?.id === peer.id) && 
+                         track.type === "video" && 
+                         track.source === "screen";
+                });
+                if (screenTracks.length > 0) {
+                  screenShareTrack = screenTracks[0] as any;
                 }
               }
               
@@ -2361,7 +2483,19 @@ function MeetingRoom() {
                 }
               }
               
-              return { videoTrack, audioTrack };
+              return { videoTrack, audioTrack, screenShareTrack };
+            };
+            
+            // Find all peers with active screen shares
+            const getScreenSharePeers = () => {
+              const screenSharePeers: Array<{ peer: any; track: any }> = [];
+              filteredPeers.forEach((peer) => {
+                const { screenShareTrack } = getPeerTracks(peer);
+                if (screenShareTrack) {
+                  screenSharePeers.push({ peer, track: screenShareTrack });
+                }
+              });
+              return screenSharePeers;
             };
             
             // Helper function to check if peer is host
@@ -2378,21 +2512,24 @@ function MeetingRoom() {
             const currentUserIsHost = user?.id === meeting.host_id;
             
             // Render video tile component
-            const renderVideoTile = (peer: any, isMaximized = false) => {
-              const { videoTrack, audioTrack } = getPeerTracks(peer);
+            const renderVideoTile = (peer: any, isMaximized = false, useScreenShare = false) => {
+              const { videoTrack, audioTrack, screenShareTrack } = getPeerTracks(peer);
               const isPeerHostValue = isPeerHost(peer);
+              
+              // Use screen share track if requested and available
+              const displayTrack = useScreenShare && screenShareTrack ? screenShareTrack : videoTrack;
               
               return (
                 <div
-                  key={peer.id}
+                  key={`${peer.id}-${useScreenShare ? 'screen' : 'video'}`}
                   onClick={() => handleToggleMaximize(peer.id)}
                   className={`relative flex items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-lg cursor-pointer transition-all hover:border-sky-500 hover:shadow-xl h-full w-full ${
                     isMaximized ? 'ring-2 ring-sky-500' : ''
-                  }`}
+                  } ${useScreenShare ? 'ring-2 ring-blue-500' : ''}`}
                   title={isMaximized ? "Click to restore normal view" : "Click to maximize"}
                 >
                   <VideoTile 
-                    track={videoTrack} 
+                    track={displayTrack} 
                     peer={peer} 
                     localPeerId={localPeer?.id}
                     isHost={isPeerHostValue}
@@ -2404,6 +2541,14 @@ function MeetingRoom() {
                     onToggleRemoteVideo={currentUserIsHost && peer.id !== localPeer?.id ? handleToggleRemoteVideo : undefined}
                     isHandRaised={raisedHands.get(peer.id) || false}
                   />
+                  {useScreenShare && (
+                    <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded-md bg-blue-600/90 px-2 py-1 text-xs font-semibold text-white">
+                      <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                      </svg>
+                      <span>Screen Share</span>
+                    </div>
+                  )}
                 </div>
               );
             };
@@ -2452,9 +2597,52 @@ function MeetingRoom() {
               );
             }
             
-            // Normal mode: proportional grid that fits within viewport
+            // Normal mode: show screen shares prominently, then regular video tiles
+            const screenSharePeers = getScreenSharePeers();
+            const peersWithoutScreenShare = filteredPeers.filter(peer => 
+              !screenSharePeers.some(ss => ss.peer.id === peer.id)
+            );
+            
+            // If there are screen shares, show them at the top
+            if (screenSharePeers.length > 0) {
+              return (
+                <div className="flex h-full flex-col gap-2">
+                  {/* Screen Share Section - takes 60% of height */}
+                  <div className="flex-shrink-0" style={{ height: '60%' }}>
+                    {screenSharePeers.length === 1 ? (
+                      // Single screen share - full width
+                      <div className="h-full">
+                        {renderVideoTile(screenSharePeers[0].peer, false, true)}
+                      </div>
+                    ) : (
+                      // Multiple screen shares - grid
+                      <div className={`grid h-full gap-2 ${screenSharePeers.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                        {screenSharePeers.map(({ peer }) => (
+                          <div key={peer.id}>
+                            {renderVideoTile(peer, false, true)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Regular Video Tiles Section - takes remaining 40% */}
+                  {peersWithoutScreenShare.length > 0 && (
+                    <div className="flex-1 min-h-0">
+                      <div className="mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                        Participants
+                      </div>
+                      <div className="grid h-full gap-2 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 auto-rows-fr" style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
+                        {peersWithoutScreenShare.map((peer) => renderVideoTile(peer, false))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            
+            // No screen shares - show regular grid
             const gridCols = getOptimalGridCols(filteredPeers.length);
-            const gridRows = Math.ceil(filteredPeers.length / gridCols);
             const gridColsClass = {
               1: 'grid-cols-1',
               2: 'grid-cols-1 md:grid-cols-2',
@@ -2463,9 +2651,6 @@ function MeetingRoom() {
               5: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5',
               6: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6',
             }[gridCols] || 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
-            
-            // Use auto-rows to make tiles fit within available height
-            const gridRowsClass = `grid-rows-${gridRows}`;
             
             return (
               <div className={`grid h-full gap-2 ${gridColsClass} auto-rows-fr`} style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
@@ -2950,6 +3135,11 @@ function MeetingRoom() {
           {toggleError && (
             <div className="rounded-md bg-rose-500/20 px-4 py-2 text-sm text-rose-300">
               Error: {toggleError}
+            </div>
+          )}
+          {screenShareError && (
+            <div className="rounded-md bg-rose-500/20 px-4 py-2 text-sm text-rose-300">
+              Screen Share Error: {screenShareError}
             </div>
           )}
         </div>
