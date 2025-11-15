@@ -72,6 +72,23 @@ type FileRecord = {
   uploaded_at: string;
 };
 
+type RecordingRecord = {
+  id: string;
+  meeting_id: string;
+  hms_recording_id: string;
+  started_by: string;
+  display_name: string;
+  status: string;
+  url: string | null;
+  started_at: string;
+  stopped_at: string | null;
+  stopped_by: string | null;
+  auto_stopped: boolean;
+  duration: number | null;
+  file_size: number | null;
+  created_at: string;
+};
+
 export default function DashboardPage() {
   const { status, user } = useUser();
   const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
@@ -88,6 +105,11 @@ export default function DashboardPage() {
   const [expandedFilesMeetings, setExpandedFilesMeetings] = useState<Set<string>>(new Set());
   const [meetingFiles, setMeetingFiles] = useState<Map<string, FileRecord[]>>(new Map());
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set());
+  
+  // Recordings history state
+  const [expandedRecordingsMeetings, setExpandedRecordingsMeetings] = useState<Set<string>>(new Set());
+  const [meetingRecordings, setMeetingRecordings] = useState<Map<string, RecordingRecord[]>>(new Map());
+  const [loadingRecordings, setLoadingRecordings] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -96,6 +118,33 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }, [status]);
+
+  // Poll for recording updates when recordings modal is open
+  useEffect(() => {
+    if (expandedRecordingsMeetings.size === 0) {
+      return;
+    }
+
+    // Check if any recordings need updating (don't have URLs yet)
+    const hasRecordingsWithoutUrls = Array.from(expandedRecordingsMeetings).some((meetingId) => {
+      const recordings = meetingRecordings.get(meetingId);
+      return recordings && recordings.some((rec: RecordingRecord) => !rec.url && rec.hms_recording_id);
+    });
+
+    if (!hasRecordingsWithoutUrls) {
+      // All recordings have URLs, no need to poll
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      // Refresh recordings for all open modals (silently, without showing loading)
+      expandedRecordingsMeetings.forEach((meetingId) => {
+        fetchRecordingsHistory(meetingId, true);
+      });
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(intervalId);
+  }, [expandedRecordingsMeetings, meetingRecordings]);
 
   async function fetchDashboard() {
     setLoading(true);
@@ -264,6 +313,76 @@ export default function DashboardPage() {
     }
   }
 
+  // Fetch recordings for a meeting
+  async function fetchRecordingsHistory(meetingId: string, silent = false) {
+    // If silent, skip loading state and toggle logic (for polling)
+    if (!silent && meetingRecordings.has(meetingId)) {
+      // Already loaded, just toggle visibility
+      setExpandedRecordingsMeetings(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(meetingId)) {
+          newSet.delete(meetingId);
+        } else {
+          newSet.add(meetingId);
+        }
+        return newSet;
+      });
+      return;
+    }
+
+    if (!silent) {
+      setLoadingRecordings(prev => new Set(prev).add(meetingId));
+    }
+    try {
+      const response = await fetch(`/api/recordings/list?meetingId=${meetingId}`);
+      if (response.ok) {
+        const data = await response.json();
+        const recordings = data.recordings || [];
+        setMeetingRecordings(prev => {
+          const newMap = new Map(prev);
+          newMap.set(meetingId, recordings);
+          return newMap;
+        });
+        // Expand recordings history after loading (only if not silent)
+        if (!silent) {
+          setExpandedRecordingsMeetings(prev => new Set(prev).add(meetingId));
+        }
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to fetch recordings history:", errorData.error);
+      }
+    } catch (err) {
+      console.error("Error fetching recordings history:", err);
+    } finally {
+      if (!silent) {
+        setLoadingRecordings(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(meetingId);
+          return newSet;
+        });
+      }
+    }
+  }
+
+  // Toggle recordings history visibility
+  function toggleRecordingsHistory(meetingId: string) {
+    if (!meetingRecordings.has(meetingId)) {
+      // Not loaded yet, fetch it
+      fetchRecordingsHistory(meetingId);
+    } else {
+      // Already loaded, just toggle visibility
+      setExpandedRecordingsMeetings(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(meetingId)) {
+          newSet.delete(meetingId);
+        } else {
+          newSet.add(meetingId);
+        }
+        return newSet;
+      });
+    }
+  }
+
   // Handle file download
   async function handleFileDownload(fileId: string, fileName: string) {
     try {
@@ -299,6 +418,112 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Error downloading file:", err);
       alert("Failed to download file");
+    }
+  }
+
+  // Handle recording download
+  async function handleRecordingDownload(recordingUrl: string, recordingId: string, meetingId: string, displayName: string, startedAt: string) {
+    try {
+      // Step 1: Try to get a direct download URL from 100ms Management API (server-side)
+      try {
+        const downloadUrlResponse = await fetch(`/api/recordings/download-url?recordingId=${recordingId}&meetingId=${meetingId}`);
+        
+        if (downloadUrlResponse.ok) {
+          const { ok, downloadUrl: directUrl } = await downloadUrlResponse.json();
+          
+          if (ok && directUrl) {
+            console.log(`[Recording Download] Got direct download URL from Management API`);
+            
+            // Try to download directly from the URL
+            // If it's a direct download URL, we can download it directly
+            // Otherwise, use our proxy endpoint
+            const response = await fetch(directUrl, { 
+              method: 'GET',
+              redirect: 'follow',
+            });
+            
+            if (response.ok) {
+              const contentType = response.headers.get('content-type') || '';
+              
+              // If it's a video file, download it
+              if (contentType.includes('video/') || contentType.includes('application/octet-stream')) {
+                const blob = await response.blob();
+                
+                const dateStr = new Date(startedAt).toISOString().split('T')[0];
+                const timeStr = new Date(startedAt).toTimeString().split(' ')[0].replace(/:/g, '-');
+                const fileName = `recording-${displayName}-${dateStr}-${timeStr}.mp4`;
+                
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = fileName;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                setTimeout(() => {
+                  window.URL.revokeObjectURL(blobUrl);
+                }, 100);
+                
+                return; // Success!
+              }
+            }
+          }
+        }
+      } catch (apiError) {
+        console.error(`[Recording Download] Failed to get download URL from API:`, apiError);
+      }
+      
+      // Step 2: Fallback to proxy endpoint (handles downloads and redirects)
+      const downloadUrl = `/api/recordings/download?recordingId=${recordingId}&meetingId=${meetingId}`;
+      
+      const response = await fetch(downloadUrl, { 
+        method: 'GET',
+        redirect: 'manual' // Don't follow redirects automatically
+      });
+      
+      // If it's a redirect (307), open the preview URL
+      if (response.status === 307 || response.type === 'opaqueredirect') {
+        const location = response.headers.get('location') || recordingUrl;
+        const openPreview = confirm(
+          "Direct download is not available for this recording. Would you like to open the preview page? You can download the recording from the 100ms dashboard or the preview page."
+        );
+        if (openPreview) {
+          window.open(location, '_blank');
+        }
+        return;
+      }
+      
+      // If it's a successful response, download the file
+      if (response.ok) {
+        const blob = await response.blob();
+        
+        const dateStr = new Date(startedAt).toISOString().split('T')[0];
+        const timeStr = new Date(startedAt).toTimeString().split(' ')[0].replace(/:/g, '-');
+        const fileName = `recording-${displayName}-${dateStr}-${timeStr}.mp4`;
+        
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        setTimeout(() => {
+          window.URL.revokeObjectURL(blobUrl);
+        }, 100);
+      } else {
+        // Error response - open preview URL as fallback
+        alert("Direct download failed. Opening preview page instead.");
+        window.open(recordingUrl, '_blank');
+      }
+    } catch (err) {
+      console.error("Error downloading recording:", err);
+      // On error, open preview URL as fallback
+      window.open(recordingUrl, '_blank');
     }
   }
 
@@ -445,6 +670,21 @@ export default function DashboardPage() {
                           "Loading..."
                         ) : (
                           "View Files"
+                        )}
+                      </button>
+                      
+                      <button
+                        onClick={() => toggleRecordingsHistory(record.meeting.id)}
+                        className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                        disabled={loadingRecordings.has(record.meeting.id)}
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                        </svg>
+                        {loadingRecordings.has(record.meeting.id) ? (
+                          "Loading..."
+                        ) : (
+                          "View Recordings"
                         )}
                       </button>
                     </div>
@@ -689,6 +929,186 @@ export default function DashboardPage() {
                     ? `${files.length} file${files.length === 1 ? '' : 's'}`
                     : 'No files'}
                 </p>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      
+      {/* Recordings History Modal */}
+      {Array.from(expandedRecordingsMeetings).map((meetingId) => {
+        const recordings = meetingRecordings.get(meetingId);
+        const meeting = meetings.find(r => r.meeting.id === meetingId);
+        
+        return (
+          <div key={meetingId}>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              onClick={() => toggleRecordingsHistory(meetingId)}
+            />
+            
+            {/* Modal */}
+            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">
+                    Recordings
+                  </h2>
+                  {meeting && (
+                    <p className="text-sm text-slate-400 mt-1">
+                      {meeting.meeting.title}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => toggleRecordingsHistory(meetingId)}
+                  className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+                  title="Close"
+                >
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Recordings List */}
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                {!recordings || recordings.length === 0 ? (
+                  <div className="flex h-full items-center justify-center">
+                    <p className="text-center text-slate-400">No recordings for this meeting.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {recordings.map((recording: RecordingRecord) => {
+                      const startedAt = new Date(recording.started_at);
+                      const stoppedAt = recording.stopped_at ? new Date(recording.stopped_at) : null;
+                      const duration = recording.duration || (stoppedAt ? Math.floor((stoppedAt.getTime() - startedAt.getTime()) / 1000) : null);
+                      const durationMinutes = duration ? Math.floor(duration / 60) : null;
+                      const durationSeconds = duration ? duration % 60 : null;
+                      const fileSizeMB = recording.file_size ? (recording.file_size / 1024 / 1024).toFixed(2) : null;
+                      
+                      // Generate filename
+                      const dateStr = new Date(recording.started_at).toISOString().split('T')[0];
+                      const timeStr = new Date(recording.started_at).toTimeString().split(' ')[0].replace(/:/g, '-');
+                      const fileName = `recording-${recording.display_name}-${dateStr}-${timeStr}.mp4`;
+                      
+                      const getStatusColor = (status: string) => {
+                        switch (status) {
+                          case 'completed':
+                            return 'bg-green-600';
+                          case 'recording':
+                          case 'running':
+                          case 'starting':
+                            return 'bg-red-600';
+                          case 'stopped':
+                            return 'bg-slate-600';
+                          case 'failed':
+                            return 'bg-rose-600';
+                          default:
+                            return 'bg-slate-600';
+                        }
+                      };
+                      
+                      return (
+                        <div
+                          key={recording.id}
+                          className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-900/50 p-3 hover:bg-slate-900 transition"
+                        >
+                          {/* File Info */}
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            {/* Recording Icon */}
+                            <div className="flex-shrink-0">
+                              <div className="h-10 w-10 rounded-lg bg-red-600/20 flex items-center justify-center border border-red-600/30">
+                                <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            </div>
+                            
+                            {/* Recording Details */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-medium text-white truncate">{fileName}</span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-semibold text-white flex-shrink-0 ${getStatusColor(recording.status)}`}>
+                                  {recording.status.charAt(0).toUpperCase() + recording.status.slice(1)}
+                                </span>
+                                {recording.auto_stopped && (
+                                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-yellow-600/20 text-yellow-300 border border-yellow-600/30 flex-shrink-0">
+                                    Auto-stopped
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4 text-xs text-slate-400">
+                                <span>By {recording.display_name}</span>
+                                <span>•</span>
+                                <span>{startedAt.toLocaleDateString()} {startedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                {duration && (
+                                  <>
+                                    <span>•</span>
+                                    <span>
+                                      {durationMinutes !== null && durationSeconds !== null
+                                        ? `${durationMinutes}m ${durationSeconds}s`
+                                        : `${duration}s`}
+                                    </span>
+                                  </>
+                                )}
+                                {fileSizeMB && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{fileSizeMB} MB</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Actions */}
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                            {recording.url ? (
+                              <>
+                                <a
+                                  href={recording.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-blue-400"
+                                  title="Watch Recording"
+                                >
+                                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                  </svg>
+                                </a>
+                                <button
+                                  onClick={() => handleRecordingDownload(recording.url!, recording.id, recording.meeting_id, recording.display_name, recording.started_at)}
+                                  className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-blue-400"
+                                  title="Download Recording"
+                                >
+                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                </button>
+                              </>
+                            ) : recording.status === 'completed' ? (
+                              <span className="text-xs text-slate-400 italic">Processing...</span>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic">In progress...</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className="border-t border-slate-700 px-6 py-3">
+                <div className="text-xs text-slate-400 text-center">
+                  {recordings && recordings.length > 0 
+                    ? `${recordings.length} recording${recordings.length === 1 ? '' : 's'}`
+                    : 'No recordings'}
+                </div>
               </div>
             </div>
           </div>

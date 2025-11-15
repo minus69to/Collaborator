@@ -243,18 +243,194 @@ export async function getHMSRecording(recordingId: string) {
   try {
     // Get recording by ID
     const recording = await hms.recordings.retrieve(recordingId);
+    
+    // 100ms returns meeting_url (preview URL) and recording_assets array
+    // Find the video asset (type: "room-composite")
+    const videoAsset = recording.recording_assets?.find(
+      (asset: any) => asset.type === "room-composite" && asset.status === "completed"
+    );
+    
+    // Try to get download URL from asset if available
+    let downloadUrl: string | null = null;
+    if (videoAsset?.id) {
+      try {
+        // Try to get asset download URL via REST API
+        // Note: The SDK might not have this method, so we may need to use REST API directly
+        // For now, we'll check if there's a download_url in the asset
+        downloadUrl = videoAsset.download_url || videoAsset.url || videoAsset.presigned_url || null;
+      } catch (e) {
+        // Asset download URL not available via SDK
+      }
+    }
+    
+    // Use download URL from asset, or fallback to meeting_url (preview URL)
+    const url = downloadUrl ||
+                recording.meeting_url ||
+                recording.url || 
+                recording.recording_url || 
+                recording.recordingUrl ||
+                recording.video_url ||
+                recording.videoUrl ||
+                null;
+    
+    // Get duration and file size from the video asset if available
+    const duration = videoAsset?.duration || recording.duration || null;
+    const fileSize = videoAsset?.size || recording.file_size || recording.fileSize || null;
+    
+    // Extract file path from asset (for custom storage)
+    // The path might be in different fields depending on storage provider
+    const filePath = videoAsset?.path || 
+                     videoAsset?.file_path || 
+                     videoAsset?.s3_path ||
+                     videoAsset?.gcs_path ||
+                     videoAsset?.storage_path ||
+                     null;
+    
     return {
       id: recording.id,
-      roomId: recording.room_id,
+      roomId: recording.room_id || recording.roomId,
       status: recording.status,
-      url: recording.url || recording.recording_url || null,
-      startedAt: recording.started_at || recording.start_time || null,
-      stoppedAt: recording.stopped_at || recording.end_time || null,
-      duration: recording.duration || null,
-      fileSize: recording.file_size || null,
+      url: url,
+      assetId: videoAsset?.id || null,
+      filePath: filePath,
+      startedAt: recording.started_at || recording.start_time || recording.startedAt || recording.startTime || null,
+      stoppedAt: recording.stopped_at || recording.end_time || recording.stoppedAt || recording.endTime || null,
+      duration: duration,
+      fileSize: fileSize,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
     throw new Error(`Failed to get recording: ${errorMessage}`);
+  }
+}
+
+/**
+ * Generate a management token for 100ms Management API.
+ * Uses the SDK's built-in method which handles JWT generation correctly.
+ */
+async function generateManagementToken(): Promise<string | null> {
+  try {
+    // Use the SDK's built-in method - it handles JWT generation correctly
+    // including jti (JWT ID) and all required fields
+    const managementToken = await hms.auth.getManagementToken();
+    console.log(`[Management Token] Generated via SDK`);
+    return managementToken.token;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+    console.error(`[Management Token] Failed to generate token via SDK:`, errorMessage);
+    return null;
+  }
+}
+
+/**
+ * Get download URL for a recording asset from 100ms using Management API.
+ * Uses the 100ms REST API to get a pre-signed download URL from their storage.
+ * Note: This requires the asset_id from the recording_assets array.
+ */
+export async function getHMSRecordingAssetDownloadUrl(assetId: string): Promise<string | null> {
+  try {
+    const { HMS_ACCOUNT_ID, HMS_SECRET } = getServerEnv();
+    const baseUrl = "https://api.100ms.live/v2";
+    
+    // 100ms Management API requires Bearer token authentication
+    // First, try to get pre-signed URL directly (this is the recommended endpoint)
+    // According to 100ms docs, the endpoint is: /v2/recording-assets/{asset_id}/presigned-url
+    
+    console.log(`[Asset Download URL] Fetching pre-signed URL for asset ${assetId} from 100ms Management API...`);
+    
+    // Generate management token (JWT Bearer token)
+    const managementToken = await generateManagementToken();
+    
+    if (!managementToken) {
+      console.error(`[Asset Download URL] Failed to generate management token`);
+      return null;
+    }
+    
+    // Try the pre-signed URL endpoint with proper Bearer token
+    try {
+      const presignedResponse = await fetch(`${baseUrl}/recording-assets/${assetId}/presigned-url`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${managementToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (presignedResponse.ok) {
+        const presignedData = await presignedResponse.json();
+        const downloadUrl = presignedData.url || presignedData.presigned_url || null;
+        if (downloadUrl) {
+          console.log(`[Asset Download URL] ✓ Got pre-signed URL from presigned-url endpoint`);
+          return downloadUrl;
+        }
+      } else {
+        const errorText = await presignedResponse.text();
+        console.log(`[Asset Download URL] Presigned URL endpoint failed: ${presignedResponse.status}`, errorText.substring(0, 200));
+      }
+    } catch (presignedError) {
+      console.log(`[Asset Download URL] Presigned URL endpoint error:`, presignedError);
+    }
+    
+    // Fallback: Try Basic Auth on presigned-url endpoint
+    try {
+      const presignedResponse = await fetch(`${baseUrl}/recording-assets/${assetId}/presigned-url`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${basicAuth}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (presignedResponse.ok) {
+        const presignedData = await presignedResponse.json();
+        const downloadUrl = presignedData.url || presignedData.presigned_url || null;
+        if (downloadUrl) {
+          console.log(`[Asset Download URL] ✓ Got pre-signed URL using Basic Auth`);
+          return downloadUrl;
+        }
+      }
+    } catch (basicError) {
+      console.log(`[Asset Download URL] Basic Auth also failed`);
+    }
+    
+    // Fallback: Try to get asset details first, then extract URL
+    try {
+      const assetResponse = await fetch(`${baseUrl}/recording-assets/${assetId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${managementToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (assetResponse.ok) {
+        const assetData = await assetResponse.json();
+        console.log(`[Asset Download URL] Asset response keys:`, Object.keys(assetData));
+        
+        const downloadUrl = assetData.download_url || 
+                           assetData.presigned_url || 
+                           assetData.presigned_download_url ||
+                           assetData.url || 
+                           assetData.recording_url || 
+                           null;
+        
+        if (downloadUrl) {
+          console.log(`[Asset Download URL] ✓ Got download URL from asset details`);
+          return downloadUrl;
+        }
+      } else {
+        const errorText = await assetResponse.text();
+        console.log(`[Asset Download URL] Asset details endpoint failed: ${assetResponse.status}`, errorText.substring(0, 200));
+      }
+    } catch (assetError) {
+      console.log(`[Asset Download URL] Failed to get asset details:`, assetError);
+    }
+    
+    console.log(`[Asset Download URL] ✗ All methods failed - could not get download URL`);
+    return null;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+    console.error(`[Asset Download URL] Exception: ${errorMessage}`);
+    return null;
   }
 }

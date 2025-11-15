@@ -24,6 +24,12 @@
 .DS_Store
 *.pem
 
+# Google Cloud Service Account Keys (NEVER commit these!)
+gcs-key.json
+*-gcs-key.json
+*-service-account*.json
+*.gcs-key.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*
