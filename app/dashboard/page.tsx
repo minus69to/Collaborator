@@ -1067,28 +1067,15 @@ export default function DashboardPage() {
                           {/* Actions */}
                           <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                             {recording.url ? (
-                              <>
-                                <a
-                                  href={recording.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-blue-400"
-                                  title="Watch Recording"
-                                >
-                                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                                  </svg>
-                                </a>
-                                <button
-                                  onClick={() => handleRecordingDownload(recording.url!, recording.id, recording.meeting_id, recording.display_name, recording.started_at)}
-                                  className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-blue-400"
-                                  title="Download Recording"
-                                >
-                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                  </svg>
-                                </button>
-                              </>
+                              <button
+                                onClick={() => handleRecordingDownload(recording.url!, recording.id, recording.meeting_id, recording.display_name, recording.started_at)}
+                                className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-blue-400"
+                                title="Download Recording"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                              </button>
                             ) : recording.status === 'completed' ? (
                               <span className="text-xs text-slate-400 italic">Processing...</span>
                             ) : (
