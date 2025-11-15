@@ -2031,98 +2031,88 @@ function MeetingRoom() {
           </div>
           
           <div className="flex items-center gap-2">
-            {/* Screen Share Button */}
+            {/* Screen Share Button - Clear icon */}
             {isConnected && localPeer && (
-              <>
-                {!isScreenSharing ? (
-                  <button
-                    onClick={handleStartScreenShare}
-                    className="flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3.5 text-sm font-medium text-white transition hover:bg-blue-500 active:scale-95"
-                    title="Share Screen"
-                  >
-                    <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                    </svg>
-                    <span className="whitespace-nowrap">Share</span>
-                  </button>
+              <button
+                onClick={isScreenSharing ? handleStopScreenShare : handleStartScreenShare}
+                className={`flex h-9 w-9 items-center justify-center rounded-lg text-white transition hover:opacity-80 active:scale-95 ${
+                  isScreenSharing 
+                    ? "bg-red-600 hover:bg-red-500" 
+                    : "bg-slate-700 hover:bg-slate-600"
+                }`}
+                title={isScreenSharing ? "Stop Sharing Screen" : "Share Screen"}
+              >
+                {isScreenSharing ? (
+                  // Stop screen share - X icon in circle
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
                 ) : (
-                  <button
-                    onClick={handleStopScreenShare}
-                    className="flex h-9 items-center gap-2 rounded-lg bg-red-600 px-3.5 text-sm font-medium text-white transition hover:bg-red-500 active:scale-95"
-                    title="Stop Sharing Screen"
-                  >
-                    <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
-                    </svg>
-                    <span className="whitespace-nowrap">Stop</span>
-                  </button>
+                  // Share screen - monitor/screen icon
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                    <path d="M7 8l5-5 5 5" />
+                  </svg>
                 )}
-              </>
+              </button>
             )}
             
-            {/* Recording Controls */}
+            {/* Recording Controls - Clear icons */}
             {isConnected && canRecord && (
               <>
                 {/* Start/Stop Recording Button */}
-                {!isRecording ? (
-                  <button
-                    onClick={handleStartRecording}
-                    disabled={isStartingRecording || !canRecord}
-                    className={`flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm font-medium text-white transition-all duration-200 ${
-                      isStartingRecording
+                <button
+                  onClick={isRecording ? handleStopRecording : handleStartRecording}
+                  disabled={(isRecording && (isStoppingRecording || !canRecord)) || (!isRecording && (isStartingRecording || !canRecord))}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg text-white transition-all duration-200 active:scale-95 ${
+                    isRecording
+                      ? isStoppingRecording
                         ? "bg-slate-600/50 cursor-not-allowed opacity-60"
-                        : "bg-red-600 hover:bg-red-500 active:scale-95"
-                    }`}
-                    title="Start Recording"
-                  >
-                    <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" fill="none" />
-                      <circle cx="10" cy="10" r="3.5" fill="currentColor" />
-                    </svg>
-                    <span className="whitespace-nowrap">{isStartingRecording ? "Starting..." : "Record"}</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleStopRecording}
-                    disabled={isStoppingRecording || !canRecord}
-                    className={`flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm font-medium text-white transition-all duration-200 ${
-                      isStoppingRecording
+                        : "bg-red-600 hover:bg-red-500"
+                      : isStartingRecording
                         ? "bg-slate-600/50 cursor-not-allowed opacity-60"
-                        : "bg-slate-700 hover:bg-slate-600 active:scale-95 border border-slate-600/50"
-                    }`}
-                    title="Stop Recording"
-                  >
-                    <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <rect x="6" y="6" width="8" height="8" rx="1.5" fill="currentColor" />
+                        : "bg-red-600 hover:bg-red-500"
+                  }`}
+                  title={isRecording ? "Stop Recording" : "Start Recording"}
+                >
+                  {isRecording ? (
+                    // Stop recording - filled square
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <rect x="6" y="6" width="8" height="8" rx="1" fill="currentColor" />
                     </svg>
-                    <span className="whitespace-nowrap">{isStoppingRecording ? "Stopping..." : "Stop"}</span>
-                  </button>
-                )}
+                  ) : (
+                    // Start recording - filled red circle (record button)
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <circle cx="10" cy="10" r="6" fill="currentColor" />
+                    </svg>
+                  )}
+                </button>
                 
-                {/* Permission Toggle Button (Host only) */}
+                {/* Permission Toggle Button (Host only) - Lock/Unlock icon */}
                 {isHost && (
                   <button
                     onClick={handleTogglePermission}
                     disabled={isTogglingPermission}
-                    className={`flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm font-medium transition-all duration-200 ${
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200 active:scale-95 ${
                       allowParticipantsToRecord
-                        ? "bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95"
-                        : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white active:scale-95 border border-slate-600/50"
+                        ? "bg-emerald-600 text-white hover:bg-emerald-500"
+                        : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white border border-slate-600/50"
                     } ${isTogglingPermission ? "opacity-50 cursor-not-allowed" : ""}`}
-                    title={allowParticipantsToRecord ? "Disable participant recording" : "Enable participant recording"}
+                    title={allowParticipantsToRecord ? "Only Host Can Record (Click to Restrict)" : "All Participants Can Record (Click to Allow)"}
                   >
                     {allowParticipantsToRecord ? (
-                      <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      // Unlock icon - everyone can record (green = open/unlocked)
+                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 016 0v1a1 1 0 102 0V7a5 5 0 00-5-5z" clipRule="evenodd" />
                       </svg>
                     ) : (
-                      <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      // Lock icon - only host can record (gray = locked)
+                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                       </svg>
                     )}
-                    <span className="hidden sm:inline whitespace-nowrap">
-                      {allowParticipantsToRecord ? "All" : "Host"}
-                    </span>
                   </button>
                 )}
               </>
@@ -2131,55 +2121,55 @@ function MeetingRoom() {
             {isHost && pendingRequests.length > 0 && (
               <button
                 onClick={() => setShowHostPanel(!showHostPanel)}
-                className="flex h-9 items-center gap-2 rounded-lg bg-yellow-500 px-3.5 text-sm font-medium text-black transition hover:bg-yellow-400 active:scale-95"
+                className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-yellow-500 text-black transition hover:bg-yellow-400 active:scale-95"
+                title={`${pendingRequests.length} Pending Request${pendingRequests.length > 1 ? 's' : ''}`}
               >
-                <span>Requests</span>
-                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-black/20 px-1.5 text-xs font-bold">
+                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                  <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
+                </svg>
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-black px-1.5 text-xs font-bold text-white">
                   {pendingRequests.length}
                 </span>
               </button>
             )}
             
-            {/* Files Button */}
+            {/* Files Button - Icon only */}
             <button
               onClick={() => setShowFiles(true)}
-              className="flex h-9 items-center gap-2 rounded-lg bg-slate-700 px-3.5 text-sm font-medium text-white transition hover:bg-slate-600 active:scale-95"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700 text-white transition hover:bg-slate-600 active:scale-95"
+              title={`Files${files.length > 0 ? ` (${files.length})` : ''}`}
             >
-              <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
               </svg>
-              <span className="whitespace-nowrap">Files</span>
               {files.length > 0 && (
-                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-bold">
-                  {files.length}
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-bold text-white">
+                  {files.length > 99 ? '99+' : files.length}
                 </span>
               )}
             </button>
             
-            {/* Chat Button */}
+            {/* Chat Button - Icon only */}
             <button
               onClick={() => setShowChat(true)}
-              className="flex h-9 items-center gap-2 rounded-lg bg-slate-700 px-3.5 text-sm font-medium text-white transition hover:bg-slate-600 active:scale-95"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700 text-white transition hover:bg-slate-600 active:scale-95"
+              title="Chat"
             >
-              <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
               </svg>
-              <span className="whitespace-nowrap">Chat</span>
               {(() => {
                 // Count unread messages (messages after last read)
                 let unreadCount = 0;
                 if (chatMessages.length > 0) {
                   if (!lastReadMessageId) {
-                    // No messages read yet - all are unread
                     unreadCount = chatMessages.length;
                   } else {
-                    // Find index of last read message
                     const lastReadIndex = chatMessages.findIndex((m: any) => m.id === lastReadMessageId);
                     if (lastReadIndex === -1) {
-                      // Last read message not found - all are unread
                       unreadCount = chatMessages.length;
                     } else {
-                      // Count messages after last read
                       unreadCount = chatMessages.length - lastReadIndex - 1;
                     }
                   }
@@ -2188,7 +2178,7 @@ function MeetingRoom() {
                 // Show badge if there are unread messages when chat is closed
                 if (!showChat && unreadCount > 0) {
                   return (
-                    <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-bold">
+                    <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-bold text-white">
                       {unreadCount > 99 ? '99+' : unreadCount}
                     </span>
                   );
@@ -2197,27 +2187,31 @@ function MeetingRoom() {
               })()}
             </button>
             
-            {/* Participants List Button */}
+            {/* Participants List Button - Icon only */}
             <button
               onClick={() => setShowParticipantsList(true)}
-              className="flex h-9 items-center gap-2 rounded-lg bg-slate-700 px-3.5 text-sm font-medium text-white transition hover:bg-slate-600 active:scale-95"
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700 text-white transition hover:bg-slate-600 active:scale-95"
+              title={`Participants (${activeParticipantNames.size > 0 ? activeParticipantNames.size : peers.length > 0 ? peers.length : 0})`}
             >
-              <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
               </svg>
-              <span className="whitespace-nowrap">People</span>
-              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-slate-600 px-1.5 text-xs font-bold">
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-slate-600 px-1.5 text-xs font-bold text-white">
                 {activeParticipantNames.size > 0 
                   ? activeParticipantNames.size 
                   : peers.length > 0 ? peers.length : 0}
               </span>
             </button>
             
+            {/* Leave Button - Icon only */}
             <button
               onClick={handleLeave}
-              className="flex h-9 items-center gap-2 rounded-lg bg-rose-600 px-3.5 text-sm font-medium text-white transition hover:bg-rose-500 active:scale-95 whitespace-nowrap"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-600 text-white transition hover:bg-rose-500 active:scale-95"
+              title="Leave Meeting"
             >
-              Leave
+              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+              </svg>
             </button>
           </div>
         </div>
