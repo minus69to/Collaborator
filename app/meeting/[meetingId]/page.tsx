@@ -1838,14 +1838,14 @@ function MeetingRoom() {
             
             {/* Recording Status Indicator - visible to all */}
             {isConnected && isRecording && (
-              <div className="flex items-center gap-2 rounded-lg bg-red-600/90 backdrop-blur-sm border border-red-500/50 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-red-500/20">
+              <div className="flex h-9 items-center gap-2 rounded-lg bg-red-600 border border-red-500/50 px-3.5 text-sm font-medium text-white">
                 <div className="relative flex items-center justify-center">
-                  <div className="absolute h-3 w-3 rounded-full bg-white animate-ping opacity-75" />
-                  <div className="relative h-2.5 w-2.5 rounded-full bg-white" />
+                  <div className="absolute h-2.5 w-2.5 rounded-full bg-white animate-ping opacity-75" />
+                  <div className="relative h-2 w-2 rounded-full bg-white" />
                 </div>
-                <span className="font-semibold">Recording</span>
+                <span className="whitespace-nowrap">Recording</span>
                 {activeRecording?.startedByName && (
-                  <span className="text-xs text-red-100 bg-red-700/30 px-2 py-0.5 rounded">
+                  <span className="text-xs text-red-100 bg-red-700/40 px-2 py-0.5 rounded whitespace-nowrap">
                     by {activeRecording.startedByName}
                   </span>
                 )}
@@ -1878,64 +1878,58 @@ function MeetingRoom() {
                     }
                   }
                 }}
-                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                className={`flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm font-medium transition active:scale-95 ${
                   raisedHands.get(localPeer.id) 
                     ? "bg-yellow-500 text-black hover:bg-yellow-400 animate-pulse" 
                     : "bg-slate-700 text-white hover:bg-slate-600"
                 }`}
                 title={raisedHands.get(localPeer.id) ? "Lower Hand" : "Raise Hand"}
               >
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                 </svg>
-                {raisedHands.get(localPeer.id) ? "Lower Hand" : "Raise Hand"}
+                <span className="whitespace-nowrap">{raisedHands.get(localPeer.id) ? "Lower" : "Raise Hand"}</span>
               </button>
             )}
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Recording Controls */}
             {isConnected && canRecord && (
-              <div className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/50 backdrop-blur-sm p-1">
+              <>
                 {/* Start/Stop Recording Button */}
                 {!isRecording ? (
                   <button
                     onClick={handleStartRecording}
                     disabled={isStartingRecording || !canRecord}
-                    className={`group relative flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 ${
+                    className={`flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm font-medium text-white transition-all duration-200 ${
                       isStartingRecording
                         ? "bg-slate-600/50 cursor-not-allowed opacity-60"
-                        : "bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 shadow-lg shadow-red-500/30 hover:shadow-red-500/40 hover:scale-105 active:scale-95"
+                        : "bg-red-600 hover:bg-red-500 active:scale-95"
                     }`}
                     title="Start Recording"
                   >
-                    <svg className="h-4 w-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" fill="none" />
                       <circle cx="10" cy="10" r="3.5" fill="currentColor" />
                     </svg>
-                    <span>{isStartingRecording ? "Starting..." : "Start Recording"}</span>
-                    {!isStartingRecording && (
-                      <div className="absolute inset-0 rounded-lg bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    )}
+                    <span className="whitespace-nowrap">{isStartingRecording ? "Starting..." : "Record"}</span>
                   </button>
                 ) : (
                   <button
                     onClick={handleStopRecording}
                     disabled={isStoppingRecording || !canRecord}
-                    className={`group relative flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 ${
+                    className={`flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm font-medium text-white transition-all duration-200 ${
                       isStoppingRecording
                         ? "bg-slate-600/50 cursor-not-allowed opacity-60"
-                        : "bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 shadow-lg shadow-slate-700/30 hover:shadow-slate-600/40 hover:scale-105 active:scale-95 border border-slate-600/50"
+                        : "bg-slate-700 hover:bg-slate-600 active:scale-95 border border-slate-600/50"
                     }`}
                     title="Stop Recording"
                   >
-                    <svg className="h-4 w-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <rect x="6" y="6" width="8" height="8" rx="1.5" fill="currentColor" />
                     </svg>
-                    <span>{isStoppingRecording ? "Stopping..." : "Stop Recording"}</span>
-                    {!isStoppingRecording && (
-                      <div className="absolute inset-0 rounded-lg bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    )}
+                    <span className="whitespace-nowrap">{isStoppingRecording ? "Stopping..." : "Stop"}</span>
                   </button>
                 )}
                 
@@ -1944,40 +1938,38 @@ function MeetingRoom() {
                   <button
                     onClick={handleTogglePermission}
                     disabled={isTogglingPermission}
-                    className={`group relative flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                    className={`flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm font-medium transition-all duration-200 ${
                       allowParticipantsToRecord
-                        ? "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40"
-                        : "bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white border border-slate-600/50"
-                    } ${isTogglingPermission ? "opacity-50 cursor-not-allowed" : "hover:scale-105 active:scale-95"}`}
+                        ? "bg-emerald-600 text-white hover:bg-emerald-500 active:scale-95"
+                        : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white active:scale-95 border border-slate-600/50"
+                    } ${isTogglingPermission ? "opacity-50 cursor-not-allowed" : ""}`}
                     title={allowParticipantsToRecord ? "Disable participant recording" : "Enable participant recording"}
                   >
                     {allowParticipantsToRecord ? (
-                      <svg className="h-4 w-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
                     ) : (
-                      <svg className="h-4 w-4 transition-transform group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                       </svg>
                     )}
-                    <span className="hidden sm:inline">
-                      {allowParticipantsToRecord ? "All Can Record" : "Host Only"}
+                    <span className="hidden sm:inline whitespace-nowrap">
+                      {allowParticipantsToRecord ? "All" : "Host"}
                     </span>
                   </button>
                 )}
-              </div>
+              </>
             )}
             
             {isHost && pendingRequests.length > 0 && (
               <button
                 onClick={() => setShowHostPanel(!showHostPanel)}
-                className="relative rounded-md bg-yellow-500 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-400"
+                className="flex h-9 items-center gap-2 rounded-lg bg-yellow-500 px-3.5 text-sm font-medium text-black transition hover:bg-yellow-400 active:scale-95"
               >
-                <span className="flex items-center gap-2">
-                  Join Requests
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/20 text-xs font-bold">
-                    {pendingRequests.length}
-                  </span>
+                <span>Requests</span>
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-black/20 px-1.5 text-xs font-bold">
+                  {pendingRequests.length}
                 </span>
               </button>
             )}
@@ -1985,12 +1977,12 @@ function MeetingRoom() {
             {/* Files Button */}
             <button
               onClick={() => setShowFiles(true)}
-              className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+              className="flex h-9 items-center gap-2 rounded-lg bg-slate-700 px-3.5 text-sm font-medium text-white transition hover:bg-slate-600 active:scale-95"
             >
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
               </svg>
-              Files
+              <span className="whitespace-nowrap">Files</span>
               {files.length > 0 && (
                 <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-bold">
                   {files.length}
@@ -2001,12 +1993,12 @@ function MeetingRoom() {
             {/* Chat Button */}
             <button
               onClick={() => setShowChat(true)}
-              className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+              className="flex h-9 items-center gap-2 rounded-lg bg-slate-700 px-3.5 text-sm font-medium text-white transition hover:bg-slate-600 active:scale-95"
             >
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
               </svg>
-              Chat
+              <span className="whitespace-nowrap">Chat</span>
               {(() => {
                 // Count unread messages (messages after last read)
                 let unreadCount = 0;
@@ -2042,13 +2034,13 @@ function MeetingRoom() {
             {/* Participants List Button */}
             <button
               onClick={() => setShowParticipantsList(true)}
-              className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+              className="flex h-9 items-center gap-2 rounded-lg bg-slate-700 px-3.5 text-sm font-medium text-white transition hover:bg-slate-600 active:scale-95"
             >
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
               </svg>
-              Participants
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-600 text-xs font-bold">
+              <span className="whitespace-nowrap">People</span>
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-slate-600 px-1.5 text-xs font-bold">
                 {activeParticipantNames.size > 0 
                   ? activeParticipantNames.size 
                   : peers.length > 0 ? peers.length : 0}
@@ -2057,9 +2049,9 @@ function MeetingRoom() {
             
             <button
               onClick={handleLeave}
-              className="rounded-md bg-rose-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-400"
+              className="flex h-9 items-center gap-2 rounded-lg bg-rose-600 px-3.5 text-sm font-medium text-white transition hover:bg-rose-500 active:scale-95 whitespace-nowrap"
             >
-              Leave Meeting
+              Leave
             </button>
           </div>
         </div>
