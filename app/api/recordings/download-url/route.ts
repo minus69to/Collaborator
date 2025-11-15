@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     // Verify user has access to this recording
     const { data: recording } = await supabase
       .from("meeting_recordings")
-      .select("meeting_id, hms_recording_id, hms_asset_id, display_name")
+      .select("meeting_id, hms_recording_id, hms_asset_id, display_name, started_at")
       .eq("id", recordingId)
       .eq("meeting_id", meetingId)
       .single();
@@ -34,6 +34,13 @@ export async function GET(request: NextRequest) {
     if (!recording) {
       throw badRequest("Recording not found");
     }
+    
+    console.log(`[Download URL] Looking up recording ${recordingId}:`, {
+      hms_recording_id: recording.hms_recording_id,
+      hms_asset_id: recording.hms_asset_id,
+      display_name: recording.display_name,
+      started_at: recording.started_at,
+    });
 
     // Check if user has access to this meeting
     const { data: meeting } = await supabase
@@ -59,23 +66,30 @@ export async function GET(request: NextRequest) {
       throw badRequest("You don't have access to this recording");
     }
 
-    // Try to get download URL using asset ID if available
+    // Always fetch fresh recording details from 100ms to ensure we have the correct asset ID
+    // This prevents issues with stale or incorrect asset IDs in the database
     let downloadUrl: string | null = null;
+    let assetIdToUse: string | null = null;
 
-    if (recording.hms_asset_id) {
-      console.log(`[Download URL] Attempting to get URL for asset ${recording.hms_asset_id}...`);
-      downloadUrl = await getHMSRecordingAssetDownloadUrl(recording.hms_asset_id);
-    }
-
-    // If we don't have asset_id, fetch recording details to get it
-    if (!downloadUrl && recording.hms_recording_id) {
-      console.log(`[Download URL] Fetching recording details for ${recording.hms_recording_id}...`);
+    if (recording.hms_recording_id) {
+      console.log(`[Download URL] Fetching fresh recording details from 100ms for ${recording.hms_recording_id}...`);
       try {
         const hmsRecording = await getHMSRecording(recording.hms_recording_id);
         
-        // Try to get URL from recording asset
-        if (hmsRecording.assetId) {
-          downloadUrl = await getHMSRecordingAssetDownloadUrl(hmsRecording.assetId);
+        console.log(`[Download URL] 100ms recording details:`, {
+          status: hmsRecording.status,
+          assetId: hmsRecording.assetId,
+          storedAssetId: recording.hms_asset_id,
+          urlPresent: !!hmsRecording.url,
+        });
+        
+        // Use the asset ID from 100ms (always fresh)
+        assetIdToUse = hmsRecording.assetId || recording.hms_asset_id;
+        
+        // Try to get URL from recording asset (prefer fresh asset ID from 100ms)
+        if (assetIdToUse) {
+          console.log(`[Download URL] Attempting to get download URL for asset ${assetIdToUse}...`);
+          downloadUrl = await getHMSRecordingAssetDownloadUrl(assetIdToUse);
         }
         
         // Fallback to URL from recording metadata
@@ -84,11 +98,22 @@ export async function GET(request: NextRequest) {
           // Preview URLs typically contain "/preview/" or "/__internal_recorder"
           if (!hmsRecording.url.includes('/preview/') && !hmsRecording.url.includes('/__internal_recorder')) {
             downloadUrl = hmsRecording.url;
+            console.log(`[Download URL] Using non-preview URL from recording metadata`);
           }
         }
       } catch (error) {
-        console.error(`[Download URL] Failed to fetch recording:`, error);
+        console.error(`[Download URL] Failed to fetch recording from 100ms:`, error);
+        
+        // Fallback: try stored asset ID if fresh fetch failed
+        if (!downloadUrl && recording.hms_asset_id) {
+          console.log(`[Download URL] Fallback: Using stored asset ID ${recording.hms_asset_id}...`);
+          downloadUrl = await getHMSRecordingAssetDownloadUrl(recording.hms_asset_id);
+        }
       }
+    } else if (recording.hms_asset_id) {
+      // No recording ID but have asset ID - try direct asset lookup
+      console.log(`[Download URL] No hms_recording_id, using stored asset ID ${recording.hms_asset_id}...`);
+      downloadUrl = await getHMSRecordingAssetDownloadUrl(recording.hms_asset_id);
     }
 
     if (!downloadUrl) {

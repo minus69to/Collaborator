@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     // Verify user has access to this recording
     const { data: recording } = await supabase
       .from("meeting_recordings")
-      .select("meeting_id, url, hms_asset_id, hms_recording_id, file_path, storage_provider, display_name, started_at")
+      .select("meeting_id, url, hms_asset_id, hms_recording_id, display_name, started_at")
       .eq("id", recordingId)
       .eq("meeting_id", meetingId)
       .single();
@@ -35,39 +35,40 @@ export async function GET(request: NextRequest) {
     if (!recording) {
       throw badRequest("Recording not found");
     }
+    
+    console.log(`[Recording Download] Starting download for recording ${recordingId}:`, {
+      hms_recording_id: recording.hms_recording_id,
+      hms_asset_id: recording.hms_asset_id,
+      display_name: recording.display_name,
+    });
 
-    // Priority 1: If recording is stored in custom storage, generate signed URL
-    if (recording.file_path && recording.storage_provider && recording.storage_provider !== '100ms') {
-      console.log(`[Recording Download] Using custom storage: ${recording.storage_provider} for path: ${recording.file_path}`);
-      const signedUrl = await getSignedDownloadUrl(recording.file_path, recording.storage_provider, 3600);
-      if (signedUrl) {
-        // Redirect to signed URL (or fetch and proxy if needed)
-        return Response.redirect(signedUrl, 307);
-      } else {
-        console.error(`[Recording Download] Failed to generate signed URL for custom storage`);
-        // Fall through to try other methods
-      }
-    }
-
-    // Priority 2: Try to get download URL from 100ms Management API using asset_id
+    // Always fetch fresh recording details from 100ms to get the correct asset ID
     let downloadUrl: string | null = null;
-    if (recording.hms_asset_id) {
-      console.log(`[Recording Download] Attempting to get download URL from 100ms Management API for asset ${recording.hms_asset_id}...`);
-      downloadUrl = await getHMSRecordingAssetDownloadUrl(recording.hms_asset_id);
-      if (downloadUrl) {
-        console.log(`[Recording Download] ✓ Got download URL from 100ms Management API`);
-      }
-    }
+    let assetIdToUse: string | null = null;
 
-    // Priority 3: If we don't have asset_id but have recording_id, fetch recording to get asset_id
-    if (!downloadUrl && recording.hms_recording_id) {
-      console.log(`[Recording Download] Fetching recording details to get asset_id...`);
+    if (recording.hms_recording_id) {
+      console.log(`[Recording Download] Fetching fresh recording details from 100ms for ${recording.hms_recording_id}...`);
       try {
         const hmsRecording = await getHMSRecording(recording.hms_recording_id);
-        if (hmsRecording.assetId) {
-          downloadUrl = await getHMSRecordingAssetDownloadUrl(hmsRecording.assetId);
+        
+        console.log(`[Recording Download] 100ms recording details:`, {
+          status: hmsRecording.status,
+          assetId: hmsRecording.assetId,
+          storedAssetId: recording.hms_asset_id,
+          urlPresent: !!hmsRecording.url,
+        });
+        
+        // Use the asset ID from 100ms (always fresh)
+        assetIdToUse = hmsRecording.assetId || recording.hms_asset_id;
+        
+        // Try to get download URL from asset API (prefer fresh asset ID from 100ms)
+        if (assetIdToUse) {
+          console.log(`[Recording Download] Attempting to get download URL for asset ${assetIdToUse}...`);
+          downloadUrl = await getHMSRecordingAssetDownloadUrl(assetIdToUse);
           if (downloadUrl) {
-            console.log(`[Recording Download] ✓ Got download URL after fetching asset_id`);
+            console.log(`[Recording Download] ✓ Got download URL from asset API`);
+          } else {
+            console.log(`[Recording Download] ✗ Could not get download URL from asset API`);
           }
         }
         
@@ -77,20 +78,32 @@ export async function GET(request: NextRequest) {
           // If it's not a preview URL, it might be a direct download URL
           if (!hmsRecording.url.includes('/preview/') && !hmsRecording.url.includes('/__internal_recorder')) {
             downloadUrl = hmsRecording.url;
-            console.log(`[Recording Download] Using URL from recording metadata (non-preview)`);
+            console.log(`[Recording Download] Using non-preview URL from recording metadata`);
           }
         }
-      } catch (e) {
-        console.error(`[Recording Download] Failed to fetch recording details:`, e);
+      } catch (error) {
+        console.error(`[Recording Download] Failed to fetch recording from 100ms:`, error);
+        
+        // Fallback: try stored asset ID if fresh fetch failed
+        if (!downloadUrl && recording.hms_asset_id) {
+          console.log(`[Recording Download] Fallback: Using stored asset ID ${recording.hms_asset_id}...`);
+          downloadUrl = await getHMSRecordingAssetDownloadUrl(recording.hms_asset_id);
+        }
       }
+    } else if (recording.hms_asset_id) {
+      // No recording ID but have asset ID - try direct asset lookup
+      console.log(`[Recording Download] No hms_recording_id, using stored asset ID ${recording.hms_asset_id}...`);
+      downloadUrl = await getHMSRecordingAssetDownloadUrl(recording.hms_asset_id);
     }
 
-    // Priority 4: Fallback to stored URL (might be preview URL)
+    // Fallback to stored URL only if we don't have a download URL from asset API
     const videoUrl = downloadUrl || recording.url;
 
     if (!videoUrl) {
       throw badRequest("Recording URL not available yet. Please try again later.");
     }
+    
+    console.log(`[Recording Download] Using video URL: ${videoUrl.substring(0, 100)}...`);
 
     // Try to fetch the actual video file
     console.log(`[Recording Download] Attempting to fetch video from: ${videoUrl.substring(0, 100)}...`);
@@ -115,18 +128,18 @@ export async function GET(request: NextRequest) {
       // If it's HTML, it's the preview page, not the video
       if (contentType.includes("text/html")) {
         console.log(`[Recording Download] URL returns HTML (preview page), cannot download directly`);
-        // Return redirect to preview URL
-        return Response.redirect(recording.url, 307);
+        throw badRequest("Recording download is not available. The recording may only be available as a preview page.");
       }
 
       // Get the file as a buffer
       const fileBuffer = await videoResponse.arrayBuffer();
       
-      // Check if we got actual video data
+      console.log(`[Recording Download] Fetched ${fileBuffer.byteLength} bytes, Content-Type: ${contentType}`);
+      
+      // Check if we got actual video data (at least 1KB for a valid video file)
       if (fileBuffer.byteLength < 1000) {
         console.log(`[Recording Download] Received suspiciously small file: ${fileBuffer.byteLength} bytes`);
-        // Return redirect to preview URL
-        return Response.redirect(recording.url, 307);
+        throw badRequest("Recording file is too small. The recording may still be processing or unavailable.");
       }
 
       // Generate a filename
@@ -134,7 +147,7 @@ export async function GET(request: NextRequest) {
       const timeStr = new Date(recording.started_at).toTimeString().split(" ")[0].replace(/:/g, "-");
       const fileName = `recording-${recording.display_name}-${dateStr}-${timeStr}.mp4`;
 
-      console.log(`[Recording Download] ✓ Successfully fetched ${fileBuffer.byteLength} bytes`);
+      console.log(`[Recording Download] ✓ Successfully fetched ${fileBuffer.byteLength} bytes, serving as ${fileName}`);
 
       // Return the file with appropriate headers
       return new Response(fileBuffer, {
@@ -148,12 +161,18 @@ export async function GET(request: NextRequest) {
       });
     } catch (fetchError) {
       console.error(`[Recording Download] Failed to fetch video directly:`, fetchError);
-      // Fallback: redirect to preview URL
-      console.log(`[Recording Download] Falling back to preview URL redirect`);
-      return Response.redirect(recording.url, 307);
+      
+      // If it's a badRequest error, re-throw it
+      if (fetchError && typeof fetchError === 'object' && 'status' in fetchError) {
+        throw fetchError;
+      }
+      
+      // Otherwise, throw a generic error
+      throw badRequest(`Failed to download recording: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
     }
   } catch (error) {
     return toErrorResponse(error);
   }
 }
+
 

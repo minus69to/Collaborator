@@ -421,109 +421,77 @@ export default function DashboardPage() {
     }
   }
 
-  // Handle recording download
+  // Handle recording download - following the same pattern as file downloads
   async function handleRecordingDownload(recordingUrl: string, recordingId: string, meetingId: string, displayName: string, startedAt: string) {
     try {
-      // Step 1: Try to get a direct download URL from 100ms Management API (server-side)
-      try {
-        const downloadUrlResponse = await fetch(`/api/recordings/download-url?recordingId=${recordingId}&meetingId=${meetingId}`);
-        
-        if (downloadUrlResponse.ok) {
-          const { ok, downloadUrl: directUrl } = await downloadUrlResponse.json();
-          
-          if (ok && directUrl) {
-            console.log(`[Recording Download] Got direct download URL from Management API`);
-            
-            // Try to download directly from the URL
-            // If it's a direct download URL, we can download it directly
-            // Otherwise, use our proxy endpoint
-            const response = await fetch(directUrl, { 
-              method: 'GET',
-              redirect: 'follow',
-            });
-            
-            if (response.ok) {
-              const contentType = response.headers.get('content-type') || '';
-              
-              // If it's a video file, download it
-              if (contentType.includes('video/') || contentType.includes('application/octet-stream')) {
-                const blob = await response.blob();
-                
-                const dateStr = new Date(startedAt).toISOString().split('T')[0];
-                const timeStr = new Date(startedAt).toTimeString().split(' ')[0].replace(/:/g, '-');
-                const fileName = `recording-${displayName}-${dateStr}-${timeStr}.mp4`;
-                
-                const blobUrl = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = blobUrl;
-                link.download = fileName;
-                link.style.display = 'none';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                
-                setTimeout(() => {
-                  window.URL.revokeObjectURL(blobUrl);
-                }, 100);
-                
-                return; // Success!
-              }
-            }
-          }
+      console.log(`[Recording Download Client] Starting download for recording ${recordingId}...`);
+      
+      // Step 1: Get signed download URL from server (authenticated endpoint)
+      const downloadUrlResponse = await fetch(
+        `/api/recordings/download-url?recordingId=${recordingId}&meetingId=${meetingId}`,
+        {
+          method: 'GET',
+          credentials: 'include', // Send cookies for authentication
         }
-      } catch (apiError) {
-        console.error(`[Recording Download] Failed to get download URL from API:`, apiError);
+      );
+      
+      if (!downloadUrlResponse.ok) {
+        const errorData = await downloadUrlResponse.json().catch(() => ({ error: 'Unknown error' }));
+        console.error("Failed to get download URL:", errorData.error);
+        throw new Error(errorData.error || `Failed to get download URL: ${downloadUrlResponse.status}`);
       }
       
-      // Step 2: Fallback to proxy endpoint (handles downloads and redirects)
-      const downloadUrl = `/api/recordings/download?recordingId=${recordingId}&meetingId=${meetingId}`;
+      const { ok, downloadUrl, error } = await downloadUrlResponse.json();
       
-      const response = await fetch(downloadUrl, { 
+      if (!ok || !downloadUrl) {
+        throw new Error(error || "Download URL not available");
+      }
+      
+      console.log(`[Recording Download Client] Got download URL from server`);
+      
+      // Step 2: Fetch the file directly from the signed URL (works with cross-origin URLs)
+      const fileResponse = await fetch(downloadUrl, {
         method: 'GET',
-        redirect: 'manual' // Don't follow redirects automatically
+        redirect: 'follow',
       });
       
-      // If it's a redirect (307), open the preview URL
-      if (response.status === 307 || response.type === 'opaqueredirect') {
-        const location = response.headers.get('location') || recordingUrl;
-        const openPreview = confirm(
-          "Direct download is not available for this recording. Would you like to open the preview page? You can download the recording from the 100ms dashboard or the preview page."
-        );
-        if (openPreview) {
-          window.open(location, '_blank');
-        }
-        return;
+      if (!fileResponse.ok) {
+        throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
       }
       
-      // If it's a successful response, download the file
-      if (response.ok) {
-        const blob = await response.blob();
-        
-        const dateStr = new Date(startedAt).toISOString().split('T')[0];
-        const timeStr = new Date(startedAt).toTimeString().split(' ')[0].replace(/:/g, '-');
-        const fileName = `recording-${displayName}-${dateStr}-${timeStr}.mp4`;
-        
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = fileName;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        setTimeout(() => {
-          window.URL.revokeObjectURL(blobUrl);
-        }, 100);
-      } else {
-        // Error response - open preview URL as fallback
-        alert("Direct download failed. Opening preview page instead.");
-        window.open(recordingUrl, '_blank');
+      const blob = await fileResponse.blob();
+      console.log(`[Recording Download Client] Received blob: ${blob.size} bytes, type: ${blob.type}`);
+      
+      // Check if we got actual video data
+      if (blob.size < 1000) {
+        throw new Error(`File too small: ${blob.size} bytes - may be an error response`);
       }
+      
+      // Generate filename
+      const dateStr = new Date(startedAt).toISOString().split('T')[0];
+      const timeStr = new Date(startedAt).toTimeString().split(' ')[0].replace(/:/g, '-');
+      const fileName = `recording-${displayName}-${dateStr}-${timeStr}.mp4`;
+      
+      // Create blob URL and trigger download (same pattern as file downloads)
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up blob URL after download
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+      
+      console.log(`[Recording Download Client] ✓ Download started for ${fileName}`);
+      
     } catch (err) {
       console.error("Error downloading recording:", err);
-      // On error, open preview URL as fallback
-      window.open(recordingUrl, '_blank');
+      alert(`Failed to download recording: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   }
 

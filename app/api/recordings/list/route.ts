@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { badRequest, toErrorResponse } from "@/lib/errors";
 import { createSupabaseServiceRoleClient } from "@/lib/supabaseServer";
 import { requireUser } from "@/lib/auth";
-import { getHMSRecording, getHMSRecordingAssetDownloadUrl } from "@/lib/hms";
+import { getHMSRecording, getHMSRecordingAssetDownloadUrl, listHMSRecordings } from "@/lib/hms";
 
 /**
  * GET endpoint to list recordings for a meeting.
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     // Verify user has access to this meeting (either as host or participant)
     const { data: meeting } = await supabase
       .from("meetings")
-      .select("id, host_id")
+      .select("id, host_id, hms_room_id")
       .eq("id", meetingId)
       .single();
 
@@ -45,7 +45,132 @@ export async function GET(request: NextRequest) {
       throw badRequest("You don't have access to this meeting");
     }
 
-    // Get all recordings for this meeting
+    // Sync recordings from 100ms if room ID is available
+    if (meeting.hms_room_id) {
+      try {
+        console.log(`[Recordings List] Syncing recordings from 100ms for room ${meeting.hms_room_id}...`);
+        const hmsRecordings = await listHMSRecordings(meeting.hms_room_id);
+        console.log(`[Recordings List] Found ${hmsRecordings.length} recordings in 100ms`);
+        
+        // Get all existing recordings from database (by hms_recording_id)
+        const { data: existingRecordings } = await supabase
+          .from("meeting_recordings")
+          .select("id, hms_recording_id, hms_asset_id")
+          .eq("meeting_id", meetingId)
+          .not("hms_recording_id", "is", null);
+        
+        const existingHmsIds = new Set(
+          (existingRecordings || []).map(r => r.hms_recording_id)
+        );
+        
+        // Create map of hms_recording_id to database record ID
+        const hmsIdToDbId = new Map(
+          (existingRecordings || []).map(r => [r.hms_recording_id, r.id])
+        );
+        
+        // Create missing recordings in database or update existing ones
+        for (const hmsRec of hmsRecordings) {
+          const existingDbId = hmsIdToDbId.get(hmsRec.id);
+          
+          if (!existingDbId) {
+            // Recording doesn't exist in database - create it
+            console.log(`[Recordings List] Creating missing recording ${hmsRec.id} in database...`);
+            
+            // Get detailed recording info from 100ms
+            let detailedRec: any = null;
+            try {
+              detailedRec = await getHMSRecording(hmsRec.id);
+            } catch (err) {
+              console.error(`[Recordings List] Failed to get details for recording ${hmsRec.id}:`, err);
+              // Use basic info from list
+              detailedRec = hmsRec;
+            }
+            
+            // Determine who started the recording (try to find from participants or use host as default)
+            let startedBy = meeting.host_id;
+            let displayName = "Unknown";
+            
+            // Try to get display name from participant records
+            const { data: participants } = await supabase
+              .from("meeting_participants")
+              .select("user_id, display_name")
+              .eq("meeting_id", meetingId)
+              .order("joined_at", { ascending: true })
+              .limit(1);
+            
+            if (participants && participants.length > 0) {
+              startedBy = participants[0].user_id;
+              displayName = participants[0].display_name || displayName;
+            }
+            
+            // Create recording record
+            // Note: file_path and storage_provider columns may not exist in all database schemas
+            const { error: createError } = await supabase
+              .from("meeting_recordings")
+              .insert({
+                meeting_id: meetingId,
+                hms_recording_id: hmsRec.id,
+                started_by: startedBy,
+                display_name: displayName,
+                status: detailedRec.status || hmsRec.status || 'unknown',
+                url: detailedRec.url || null,
+                started_at: detailedRec.startedAt || hmsRec.startedAt || new Date().toISOString(),
+                stopped_at: detailedRec.stoppedAt || hmsRec.stoppedAt || null,
+                auto_stopped: false,
+                duration: detailedRec.duration || null,
+                file_size: detailedRec.fileSize || null,
+                hms_asset_id: detailedRec.assetId || null,
+                // file_path and storage_provider removed - columns don't exist in schema
+              });
+            
+              if (createError) {
+                console.error(`[Recordings List] Failed to create recording ${hmsRec.id} in database:`, createError);
+              } else {
+                console.log(`[Recordings List] ✓ Created recording ${hmsRec.id} in database`);
+              }
+          } else {
+            // Recording exists - update it with fresh data from 100ms if needed
+            try {
+              const detailedRec = await getHMSRecording(hmsRec.id);
+              const existingRec = existingRecordings?.find(r => r.id === existingDbId);
+              
+              // Update if we have new asset ID or if asset ID is missing
+              const needsUpdate = (detailedRec.assetId && detailedRec.assetId !== existingRec?.hms_asset_id) ||
+                                  (!existingRec?.hms_asset_id && detailedRec.assetId);
+              
+              if (needsUpdate) {
+                console.log(`[Recordings List] Updating recording ${hmsRec.id} (DB ID: ${existingDbId}) with fresh asset ID...`);
+                const { error: updateError } = await supabase
+                  .from("meeting_recordings")
+                  .update({
+                    hms_asset_id: detailedRec.assetId || null,
+                    status: detailedRec.status || null,
+                    url: detailedRec.url || null,
+                    duration: detailedRec.duration || null,
+                    file_size: detailedRec.fileSize || null,
+                    stopped_at: detailedRec.stoppedAt || null,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", existingDbId);
+                
+                if (updateError) {
+                  console.error(`[Recordings List] Failed to update recording ${existingDbId}:`, updateError);
+                } else {
+                  console.log(`[Recordings List] ✓ Updated recording ${existingDbId} with fresh data`);
+                }
+              }
+            } catch (updateErr) {
+              console.error(`[Recordings List] Failed to update existing recording ${hmsRec.id}:`, updateErr);
+            }
+          }
+        }
+      } catch (syncError) {
+        console.error(`[Recordings List] Failed to sync recordings from 100ms:`, syncError);
+        // Continue with existing database records even if sync fails
+      }
+    }
+
+    // Get all recordings for this meeting (including newly synced ones)
     const { data: recordings, error: recordingsError } = await supabase
       .from("meeting_recordings")
       .select("*")
@@ -62,6 +187,7 @@ export async function GET(request: NextRequest) {
       
       const updatePromises = recordings.map(async (recording) => {
         // Check ALL recordings without URLs that have an HMS recording ID
+        // This includes stopped recordings that are still processing (no URL yet)
         // This ensures we fetch URLs from 100ms as soon as they become available
         const shouldCheck = !recording.url && recording.hms_recording_id;
         
@@ -81,11 +207,13 @@ export async function GET(request: NextRequest) {
               fileSize: hmsRecording.fileSize,
             });
             
-            // Try to get download URL from asset if we have an asset ID
+            // Try to get download URL from asset if we have an asset ID but no URL
+            // Try even if we already have the asset ID stored (it might be ready now)
             let downloadUrl: string | null = null;
-            if (hmsRecording.assetId && !recording.hms_asset_id) {
-              console.log(`[Recordings List] Attempting to get download URL for asset ${hmsRecording.assetId}...`);
-              downloadUrl = await getHMSRecordingAssetDownloadUrl(hmsRecording.assetId);
+            const assetIdToCheck = hmsRecording.assetId || recording.hms_asset_id;
+            if (assetIdToCheck && !recording.url) {
+              console.log(`[Recordings List] Attempting to get download URL for asset ${assetIdToCheck}...`);
+              downloadUrl = await getHMSRecordingAssetDownloadUrl(assetIdToCheck);
               if (downloadUrl) {
                 console.log(`[Recordings List] ✓ Got download URL from asset API`);
               } else {
@@ -96,20 +224,12 @@ export async function GET(request: NextRequest) {
             // Use download URL from asset API if available, otherwise use the URL from recording
             const finalUrl = downloadUrl || hmsRecording.url;
             
-            // Determine storage provider based on file path presence
-            // If file_path exists, it's likely custom storage (S3, GCS, etc.)
-            const storageProvider = hmsRecording.filePath ? 
-              (hmsRecording.filePath.includes('s3://') || hmsRecording.filePath.includes('gs://') ? 
-                (hmsRecording.filePath.includes('s3://') ? 's3' : 'gcs') : 'custom') : 
-              '100ms';
-            
-            // Always update if we have new data (URL, status, duration, asset_id, file_path, etc.)
+            // Always update if we have new data (URL, status, duration, asset_id, etc.)
             const hasUpdates = finalUrl || 
                               (hmsRecording.status && hmsRecording.status !== recording.status) ||
                               (hmsRecording.duration !== null && hmsRecording.duration !== recording.duration) ||
                               (hmsRecording.fileSize !== null && hmsRecording.fileSize !== recording.file_size) ||
-                              (hmsRecording.assetId && hmsRecording.assetId !== recording.hms_asset_id) ||
-                              (hmsRecording.filePath && hmsRecording.filePath !== recording.file_path);
+                              (hmsRecording.assetId && hmsRecording.assetId !== recording.hms_asset_id);
             
             if (hasUpdates) {
               const updateData: any = {
@@ -126,12 +246,8 @@ export async function GET(request: NextRequest) {
                 updateData.hms_asset_id = hmsRecording.assetId;
               }
               
-              // Update file path if available (for custom storage)
-              if (hmsRecording.filePath) {
-                updateData.file_path = hmsRecording.filePath;
-                updateData.storage_provider = storageProvider;
-                console.log(`[Recordings List] ✓ Updating recording ${recording.id} with file_path: ${hmsRecording.filePath.substring(0, 50)}... (storage: ${storageProvider})`);
-              }
+              // Note: file_path and storage_provider columns may not exist in all database schemas
+              // Only update them if the columns exist (we'll skip them if they cause errors)
               
               // Update URL if available (prefer download URL from asset API)
               if (finalUrl) {
