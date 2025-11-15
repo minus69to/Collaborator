@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Supabase Storage</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .container {
+      background: #1e293b;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    h1 {
+      margin-top: 0;
+      color: #60a5fa;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 6px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 13px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success {
+      border-color: #22c55e;
+      color: #86efac;
+    }
+    .error {
+      border-color: #ef4444;
+      color: #fca5a5;
+    }
+    .info {
+      background: #1e40af;
+      color: #93c5fd;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    button:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Supabase Storage Test</h1>
+    
+    <div class="info">
+      <strong>ℹ️ Instructions:</strong><br>
+      1. Make sure you're logged in<br>
+      2. Click "Check Bucket Status" to verify the bucket exists<br>
+      3. Click "Test Upload" to test file upload functionality
+    </div>
+
+    <div class="button-group">
+      <button onclick="checkBucket()">📦 Check Bucket Status</button>
+      <button onclick="testUpload()">⬆️ Test Upload</button>
+      <button onclick="clearResults()">🗑️ Clear Results</button>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+
+    function showResult(data, isError = false) {
+      const resultsDiv = document.getElementById('results');
+      const resultDiv = document.createElement('div');
+      resultDiv.className = `result ${isError ? 'error' : 'success'}`;
+      resultDiv.textContent = JSON.stringify(data, null, 2);
+      resultsDiv.appendChild(resultDiv);
+      resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function showError(error) {
+      const resultsDiv = document.getElementById('results');
+      const resultDiv = document.createElement('div');
+      resultDiv.className = 'result error';
+      resultDiv.textContent = `❌ Error: ${error.message || JSON.stringify(error, null, 2)}`;
+      resultsDiv.appendChild(resultDiv);
+      resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    async function checkBucket() {
+      try {
+        const response = await fetch(`${API_BASE}/api/files/test-upload`);
+        const data = await response.json();
+        
+        if (response.ok && data.ok) {
+          showResult({
+            status: '✅ SUCCESS',
+            message: data.bucketExists 
+              ? 'Bucket "meeting-files" exists and is configured!' 
+              : 'Bucket "meeting-files" not found!',
+            bucketInfo: data.bucketInfo,
+            allBuckets: data.allBuckets,
+          }, false);
+        } else {
+          showResult(data, true);
+        }
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    async function testUpload() {
+      try {
+        showResult({ status: '⏳ Testing upload...' });
+        
+        const response = await fetch(`${API_BASE}/api/files/test-upload`, {
+          method: 'POST',
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.ok) {
+          showResult({
+            status: '✅ SUCCESS',
+            message: data.message,
+            bucketInfo: data.bucketInfo,
+            uploadTest: data.uploadTest,
+          }, false);
+        } else {
+          showResult({
+            status: '❌ FAILED',
+            error: data.error,
+            details: data.details || data.bucketInfo,
+          }, true);
+        }
+      } catch (error) {
+        showError(error);
+      }
+    }
+
+    function clearResults() {
+      document.getElementById('results').innerHTML = '';
+    }
+  </script>
+</body>
+</html>
+

@@ -473,6 +473,14 @@ function MeetingRoom() {
   const [lastMessageId, setLastMessageId] = useState<string | null>(null);
   const [lastReadMessageId, setLastReadMessageId] = useState<string | null>(null);
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Files state
+  const [showFiles, setShowFiles] = useState(false);
+  const [files, setFiles] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function fetchMeeting() {
@@ -1079,6 +1087,148 @@ function MeetingRoom() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, meeting?.id, lastMessageId, showChat]);
 
+  // Fetch files for the meeting
+  async function fetchFiles() {
+    if (!meeting?.id || !isConnected) return;
+
+    try {
+      const response = await fetch(`/api/files/list?meetingId=${meeting.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFiles(data.files || []);
+      }
+    } catch (err) {
+      console.error("Error fetching files:", err);
+    }
+  }
+
+  // Handle file upload
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile || !meeting?.id || !displayName.trim() || uploading) return;
+
+    // Validate file size (10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (selectedFile.size > maxSize) {
+      setError(`File size exceeds 10MB limit. Selected file is ${(selectedFile.size / 1024 / 1024).toFixed(2)}MB`);
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("meetingId", meeting.id);
+      formData.append("displayName", displayName.trim());
+
+      // Use XMLHttpRequest for upload progress
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = (e.loaded / e.total) * 100;
+          setUploadProgress(percentComplete);
+        }
+      });
+
+      xhr.addEventListener("load", async () => {
+        if (xhr.status === 200) {
+          // Refresh files list
+          await fetchFiles();
+          setUploadProgress(100);
+          setTimeout(() => {
+            setUploadProgress(0);
+            setUploading(false);
+          }, 500);
+          // Reset file input
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
+        } else {
+          const errorData = JSON.parse(xhr.responseText);
+          setError(errorData.error || "Failed to upload file");
+          setUploading(false);
+          setUploadProgress(0);
+        }
+      });
+
+      xhr.addEventListener("error", () => {
+        setError("Failed to upload file");
+        setUploading(false);
+        setUploadProgress(0);
+      });
+
+      xhr.open("POST", "/api/files/upload");
+      xhr.send(formData);
+    } catch (err) {
+      console.error("Error uploading file:", err);
+      setError("Failed to upload file");
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  }
+
+  // Handle file download
+  async function handleFileDownload(fileId: string, fileName: string) {
+    try {
+      const response = await fetch(`/api/files/download?fileId=${fileId}`);
+      if (response.ok) {
+        const data = await response.json();
+        // Open download URL
+        window.open(data.file.download_url, "_blank");
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to download file");
+      }
+    } catch (err) {
+      console.error("Error downloading file:", err);
+      setError("Failed to download file");
+    }
+  }
+
+  // Handle file delete
+  async function handleFileDelete(fileId: string) {
+    if (!confirm("Are you sure you want to delete this file?")) return;
+
+    try {
+      const response = await fetch(`/api/files/delete?fileId=${fileId}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        // Refresh files list
+        await fetchFiles();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to delete file");
+      }
+    } catch (err) {
+      console.error("Error deleting file:", err);
+      setError("Failed to delete file");
+    }
+  }
+
+  // Poll for files when connected
+  useEffect(() => {
+    if (!isConnected || !meeting?.id) {
+      setFiles([]);
+      return;
+    }
+
+    // Fetch immediately
+    fetchFiles();
+
+    // Poll every 3 seconds for new files
+    const interval = setInterval(() => {
+      fetchFiles();
+    }, 3000);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, meeting?.id]);
+
   // Host can toggle remote participants' audio/video
   async function handleToggleRemoteAudio(peerId: string, enabled: boolean) {
     if (!isHost || !hmsActions) return;
@@ -1587,6 +1737,22 @@ function MeetingRoom() {
                 </span>
               </button>
             )}
+            
+            {/* Files Button */}
+            <button
+              onClick={() => setShowFiles(true)}
+              className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+            >
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+              </svg>
+              Files
+              {files.length > 0 && (
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-bold">
+                  {files.length}
+                </span>
+              )}
+            </button>
             
             {/* Chat Button */}
             <button
@@ -2230,6 +2396,228 @@ function MeetingRoom() {
                   )}
                 </button>
               </form>
+            </div>
+          </div>
+        </>
+      )}
+      
+      {/* Files Modal */}
+      {showFiles && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowFiles(false)}
+          />
+          
+          {/* Modal */}
+          <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-slate-800 shadow-2xl border-l border-slate-700">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+              <h2 className="text-xl font-semibold text-white">Files</h2>
+              <button
+                onClick={() => setShowFiles(false)}
+                className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+                title="Close"
+              >
+                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Upload Area */}
+            <div className="border-b border-slate-700 px-4 py-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={uploading || !isConnected}
+              />
+              <div
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDragging(false);
+                  if (uploading || !isConnected) return;
+                  const droppedFile = e.dataTransfer.files[0];
+                  if (droppedFile) {
+                    // Create a fake event object for handleFileUpload
+                    const fakeEvent = {
+                      target: {
+                        files: [droppedFile],
+                      },
+                    } as React.ChangeEvent<HTMLInputElement>;
+                    handleFileUpload(fakeEvent);
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!uploading && isConnected) {
+                    setIsDragging(true);
+                  }
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!uploading && isConnected) {
+                    setIsDragging(true);
+                  }
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Only set dragging to false if we're actually leaving the drop zone
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX;
+                  const y = e.clientY;
+                  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                    setIsDragging(false);
+                  }
+                }}
+                className="w-full"
+              >
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || !isConnected}
+                  className={`w-full rounded-md border-2 border-dashed px-4 py-6 text-sm font-medium text-slate-300 transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                    isDragging
+                      ? 'border-blue-500 bg-blue-900/20'
+                      : 'border-slate-600 bg-slate-900/50 hover:border-blue-500 hover:bg-slate-900'
+                  }`}
+                >
+                  {uploading ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="h-6 w-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <span>Uploading... {Math.round(uploadProgress)}%</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span>Click to upload or drag and drop</span>
+                      <span className="text-xs text-slate-500">Max 10MB</span>
+                    </div>
+                  )}
+                </button>
+              </div>
+              {uploading && uploadProgress > 0 && (
+                <div className="mt-2 w-full rounded-full bg-slate-700">
+                  <div
+                    className="h-1.5 rounded-full bg-blue-500 transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            
+            {/* Files List */}
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              {files.length === 0 ? (
+                <div className="flex h-full items-center justify-center">
+                  <p className="text-center text-slate-400">No files uploaded yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {files.map((file: any) => {
+                    const isLocalFile = file.user_id === user?.id;
+                    const avatarColor = getAvatarColor(file.display_name || "");
+                    const initials = getInitials(file.display_name || "");
+                    const timestamp = new Date(file.uploaded_at);
+                    const dateString = timestamp.toLocaleDateString();
+                    const timeString = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const fileSizeMB = (file.file_size / 1024 / 1024).toFixed(2);
+                    
+                    // Get file icon based on mime type
+                    const getFileIcon = (mimeType: string) => {
+                      if (mimeType.startsWith('image/')) return '🖼️';
+                      if (mimeType.startsWith('video/')) return '🎥';
+                      if (mimeType.startsWith('audio/')) return '🎵';
+                      if (mimeType.includes('pdf')) return '📄';
+                      if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+                      if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
+                      if (mimeType.includes('zip') || mimeType.includes('archive')) return '📦';
+                      return '📎';
+                    };
+                    
+                    return (
+                      <div
+                        key={file.id}
+                        className="flex items-start gap-3 rounded-lg border border-slate-700 bg-slate-900/50 p-3 transition hover:bg-slate-900"
+                      >
+                        {/* File Icon */}
+                        <div className="flex-shrink-0 text-2xl">
+                          {getFileIcon(file.mime_type)}
+                        </div>
+                        
+                        {/* File Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white truncate" title={file.file_name}>
+                                {file.file_name}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-slate-400">
+                                  {isLocalFile ? 'You' : file.display_name}
+                                </span>
+                                <span className="text-xs text-slate-500">•</span>
+                                <span className="text-xs text-slate-400">
+                                  {dateString} {timeString}
+                                </span>
+                                <span className="text-xs text-slate-500">•</span>
+                                <span className="text-xs text-slate-400">
+                                  {fileSizeMB} MB
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleFileDownload(file.id, file.file_name)}
+                            className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-blue-400"
+                            title="Download"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </button>
+                          {isLocalFile && (
+                            <button
+                              onClick={() => handleFileDelete(file.id)}
+                              className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-rose-400"
+                              title="Delete"
+                            >
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            {/* Footer with file count */}
+            <div className="border-t border-slate-700 px-6 py-3">
+              <p className="text-xs text-slate-400 text-center">
+                {files.length > 0 
+                  ? `${files.length} file${files.length === 1 ? '' : 's'}`
+                  : 'No files'}
+              </p>
             </div>
           </div>
         </>
