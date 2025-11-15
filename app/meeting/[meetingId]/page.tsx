@@ -569,20 +569,48 @@ function MeetingRoom() {
   
   // Clear maximized state if the maximized peer leaves
   useEffect(() => {
-    if (maximizedPeerId && !peers.find(p => p.id === maximizedPeerId)) {
-      // Maximized peer has left, restore normal view
-      setMaximizedPeerId(null);
+    if (maximizedPeerId) {
+      const isScreenShare = maximizedPeerId.endsWith('-screen');
+      const actualPeerId = isScreenShare 
+        ? maximizedPeerId.replace('-screen', '') 
+        : maximizedPeerId;
+      
+      // Check if peer still exists
+      const peerExists = peers.find(p => p.id === actualPeerId);
+      
+      // If it's a screen share, also check if the screen share track still exists
+      if (isScreenShare) {
+        const allTracks = Object.values(tracksMap || {});
+        const screenTracks = allTracks.filter((track: any) => {
+          return (track.peerId === actualPeerId || track.peer?.id === actualPeerId) && 
+                 track.type === "video" && 
+                 track.source === "screen";
+        });
+        
+        if (!peerExists || screenTracks.length === 0) {
+          // Peer left or stopped screen sharing, restore normal view
+          setMaximizedPeerId(null);
+        }
+      } else {
+        if (!peerExists) {
+          // Peer left, restore normal view
+          setMaximizedPeerId(null);
+        }
+      }
     }
-  }, [maximizedPeerId, peers]);
+  }, [maximizedPeerId, peers, tracksMap]);
   
   // Toggle maximized state for a peer
-  const handleToggleMaximize = (peerId: string) => {
-    if (maximizedPeerId === peerId) {
+  const handleToggleMaximize = (peerId: string, isScreenShare = false) => {
+    // Create unique key: "peer-id" for video, "peer-id-screen" for screen share
+    const uniqueKey = isScreenShare ? `${peerId}-screen` : peerId;
+    
+    if (maximizedPeerId === uniqueKey) {
       // If clicking the already maximized tile, restore normal view
       setMaximizedPeerId(null);
     } else {
       // Maximize the clicked tile
-      setMaximizedPeerId(peerId);
+      setMaximizedPeerId(uniqueKey);
     }
   };
   
@@ -2512,17 +2540,21 @@ function MeetingRoom() {
             const currentUserIsHost = user?.id === meeting.host_id;
             
             // Render video tile component
-            const renderVideoTile = (peer: any, isMaximized = false, useScreenShare = false) => {
+            const renderVideoTile = (peer: any, shouldMaximize = false, useScreenShare = false) => {
               const { videoTrack, audioTrack, screenShareTrack } = getPeerTracks(peer);
               const isPeerHostValue = isPeerHost(peer);
               
               // Use screen share track if requested and available
               const displayTrack = useScreenShare && screenShareTrack ? screenShareTrack : videoTrack;
               
+              // Create unique key for this tile
+              const tileUniqueKey = useScreenShare ? `${peer.id}-screen` : peer.id;
+              const isMaximized = maximizedPeerId === tileUniqueKey || shouldMaximize;
+              
               return (
                 <div
                   key={`${peer.id}-${useScreenShare ? 'screen' : 'video'}`}
-                  onClick={() => handleToggleMaximize(peer.id)}
+                  onClick={() => handleToggleMaximize(peer.id, useScreenShare)}
                   className={`relative flex items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-lg cursor-pointer transition-all hover:border-sky-500 hover:shadow-xl h-full w-full ${
                     isMaximized ? 'ring-2 ring-sky-500' : ''
                   } ${useScreenShare ? 'ring-2 ring-blue-500' : ''}`}
@@ -2566,9 +2598,15 @@ function MeetingRoom() {
             }
             
             // Maximized mode: show large tile on left + small tiles for others on right
+            // Check if we're maximizing a screen share tile or regular video tile
+            // maximizedPeerId format: "peer-id" for video, "peer-id-screen" for screen share
             if (maximizedPeerId) {
-              const maximizedPeer = filteredPeers.find(p => p.id === maximizedPeerId);
-              const otherPeers = filteredPeers.filter(p => p.id !== maximizedPeerId);
+              const isMaximizedScreenShare = maximizedPeerId.endsWith('-screen');
+              const actualPeerId = isMaximizedScreenShare 
+                ? maximizedPeerId.replace('-screen', '') 
+                : maximizedPeerId;
+              
+              const maximizedPeer = filteredPeers.find(p => p.id === actualPeerId);
               
               if (!maximizedPeer) {
                 // Peer was removed, restore normal view
@@ -2576,19 +2614,47 @@ function MeetingRoom() {
                 return null;
               }
               
+              // Get all tiles except the maximized one
+              const screenSharePeers = getScreenSharePeers();
+              const allOtherTiles: Array<{ peer: any; isScreenShare: boolean; uniqueKey: string }> = [];
+              
+              // Add all regular video tiles
+              filteredPeers.forEach((peer) => {
+                const uniqueKey = `video-${peer.id}`;
+                if (uniqueKey !== maximizedPeerId) {
+                  allOtherTiles.push({
+                    peer,
+                    isScreenShare: false,
+                    uniqueKey,
+                  });
+                }
+              });
+              
+              // Add all screen share tiles (except the maximized one if it's a screen share)
+              screenSharePeers.forEach(({ peer }) => {
+                const uniqueKey = `screen-${peer.id}`;
+                if (uniqueKey !== maximizedPeerId) {
+                  allOtherTiles.push({
+                    peer,
+                    isScreenShare: true,
+                    uniqueKey,
+                  });
+                }
+              });
+              
               return (
                 <div className="flex h-full flex-row gap-2">
                   {/* Maximized tile - takes 75% of width */}
                   <div className="flex-1 min-w-0" style={{ flexBasis: '75%' }}>
-                    {renderVideoTile(maximizedPeer, true)}
+                    {renderVideoTile(maximizedPeer, true, isMaximizedScreenShare)}
                   </div>
                   
-                  {/* Other participants - small tiles in a vertical column */}
-                  {otherPeers.length > 0 && (
+                  {/* Other tiles - small tiles in a vertical column */}
+                  {allOtherTiles.length > 0 && (
                     <div className="flex flex-col gap-2 overflow-y-auto" style={{ flexBasis: '25%', width: '25%' }}>
-                      {otherPeers.map((peer) => (
-                        <div key={peer.id} className="flex-shrink-0" style={{ aspectRatio: '16/9' }}>
-                          {renderVideoTile(peer, false)}
+                      {allOtherTiles.map(({ peer, isScreenShare, uniqueKey }) => (
+                        <div key={uniqueKey} className="flex-shrink-0" style={{ aspectRatio: '16/9' }}>
+                          {renderVideoTile(peer, false, isScreenShare)}
                         </div>
                       ))}
                     </div>
@@ -2597,52 +2663,33 @@ function MeetingRoom() {
               );
             }
             
-            // Normal mode: show screen shares prominently, then regular video tiles
+            // Normal mode: include screen shares as additional tiles in the grid
             const screenSharePeers = getScreenSharePeers();
-            const peersWithoutScreenShare = filteredPeers.filter(peer => 
-              !screenSharePeers.some(ss => ss.peer.id === peer.id)
-            );
             
-            // If there are screen shares, show them at the top
-            if (screenSharePeers.length > 0) {
-              return (
-                <div className="flex h-full flex-col gap-2">
-                  {/* Screen Share Section - takes 60% of height */}
-                  <div className="flex-shrink-0" style={{ height: '60%' }}>
-                    {screenSharePeers.length === 1 ? (
-                      // Single screen share - full width
-                      <div className="h-full">
-                        {renderVideoTile(screenSharePeers[0].peer, false, true)}
-                      </div>
-                    ) : (
-                      // Multiple screen shares - grid
-                      <div className={`grid h-full gap-2 ${screenSharePeers.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                        {screenSharePeers.map(({ peer }) => (
-                          <div key={peer.id}>
-                            {renderVideoTile(peer, false, true)}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Regular Video Tiles Section - takes remaining 40% */}
-                  {peersWithoutScreenShare.length > 0 && (
-                    <div className="flex-1 min-h-0">
-                      <div className="mb-2 text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                        Participants
-                      </div>
-                      <div className="grid h-full gap-2 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 auto-rows-fr" style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
-                        {peersWithoutScreenShare.map((peer) => renderVideoTile(peer, false))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            }
+            // Create a combined list: regular video tiles + screen share tiles
+            // Each peer with screen share will have both their video tile AND screen share tile
+            const allTiles: Array<{ peer: any; isScreenShare: boolean; uniqueKey: string }> = [];
             
-            // No screen shares - show regular grid
-            const gridCols = getOptimalGridCols(filteredPeers.length);
+            // Add regular video tiles for all peers
+            filteredPeers.forEach((peer) => {
+              allTiles.push({
+                peer,
+                isScreenShare: false,
+                uniqueKey: `video-${peer.id}`,
+              });
+            });
+            
+            // Add screen share tiles as separate tiles
+            screenSharePeers.forEach(({ peer }) => {
+              allTiles.push({
+                peer,
+                isScreenShare: true,
+                uniqueKey: `screen-${peer.id}`,
+              });
+            });
+            
+            // Calculate grid columns based on total tile count
+            const gridCols = getOptimalGridCols(allTiles.length);
             const gridColsClass = {
               1: 'grid-cols-1',
               2: 'grid-cols-1 md:grid-cols-2',
@@ -2654,7 +2701,11 @@ function MeetingRoom() {
             
             return (
               <div className={`grid h-full gap-2 ${gridColsClass} auto-rows-fr`} style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
-                {filteredPeers.map((peer) => renderVideoTile(peer, false))}
+                {allTiles.map(({ peer, isScreenShare, uniqueKey }) => (
+                  <div key={uniqueKey} className="h-full w-full">
+                    {renderVideoTile(peer, false, isScreenShare)}
+                  </div>
+                ))}
               </div>
             );
           })()}
