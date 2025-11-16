@@ -44,7 +44,14 @@ export default function LoginPage() {
           <header className="space-y-2 text-center">
             <h1 className="text-3xl font-semibold tracking-tight text-white">Sign in</h1>
             <p className="text-sm text-slate-300">
-              Access your <span className="font-semibold text-sky-300">Collaborator</span> workspace.
+              Access your{" "}
+              <Link
+                href="/"
+                className="font-semibold text-sky-300 hover:text-sky-200 transition-colors"
+              >
+                Collaborator
+              </Link>{" "}
+              workspace.
             </p>
           </header>
         <form className="space-y-4" onSubmit={handleSubmit}>

@@ -53,7 +53,13 @@ export default function SignupPage() {
             <h1 className="text-3xl font-semibold tracking-tight text-white">Create your account</h1>
             <p className="text-sm text-slate-300">
               Start hosting and joining meetings with{" "}
-              <span className="font-semibold text-sky-300">Collaborator</span>.
+              <Link
+                href="/"
+                className="font-semibold text-sky-300 hover:text-sky-200 transition-colors"
+              >
+                Collaborator
+              </Link>
+              .
             </p>
           </header>
         <form className="space-y-4" onSubmit={handleSubmit}>
