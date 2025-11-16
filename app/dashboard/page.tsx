@@ -843,7 +843,7 @@ export default function DashboardPage() {
               return (
                 <article
                   key={record.meeting.id}
-                  className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 shadow shadow-slate-950/40"
+                  className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 shadow shadow-slate-950/40"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -875,7 +875,7 @@ export default function DashboardPage() {
                           {record.meeting.description}
                         </p>
                       )}
-                      <div className="mt-3 space-y-1 text-xs text-slate-400">
+                      <div className="mt-2.5 space-y-1 text-xs text-slate-400">
                         <p>
                           Joined: {new Date(record.joined_at).toLocaleString()}
                           {record.display_name && ` as "${record.display_name}"`}
@@ -889,18 +889,18 @@ export default function DashboardPage() {
                         <p>Created: {new Date(record.meeting.created_at).toLocaleString()}</p>
                       </div>
                     </div>
-                    <div className="mt-4 flex items-center gap-2">
+                    <div className="mt-3.5 flex items-center gap-2">
                       {isActive && (
                         <Link
                           href={`/meeting/${record.meeting.id}`}
-                          className="rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400"
+                          className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-sky-400 border border-sky-400/30"
                         >
                           {isHost ? "Host Meeting" : "Join Again"}
                         </Link>
                       )}
                       <button
                         onClick={() => toggleChatHistory(record.meeting.id)}
-                        className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                        className="flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-600 border border-slate-600/40"
                         disabled={loadingChat.has(record.meeting.id)}
                       >
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -915,7 +915,7 @@ export default function DashboardPage() {
                       
                       <button
                         onClick={() => toggleFilesHistory(record.meeting.id)}
-                        className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                        className="flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-600 border border-slate-600/40"
                         disabled={loadingFiles.has(record.meeting.id)}
                       >
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -930,7 +930,7 @@ export default function DashboardPage() {
                       
                       <button
                         onClick={() => toggleRecordingsHistory(record.meeting.id)}
-                        className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                        className="flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-600 border border-slate-600/40"
                         disabled={loadingRecordings.has(record.meeting.id)}
                       >
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -945,7 +945,7 @@ export default function DashboardPage() {
                       
                       <button
                         onClick={() => toggleInsights(record.meeting.id)}
-                        className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                        className="flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-600 border border-slate-600/40"
                         disabled={loadingInsights.has(record.meeting.id)}
                       >
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -978,7 +978,7 @@ export default function DashboardPage() {
             {/* Modal */}
             <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+              <div className="flex items-center justify-between border-b border-slate-700 px-5 py-3">
                 <div>
                   <h2 className="text-xl font-semibold text-white">
                     Chat History
@@ -1058,7 +1058,7 @@ export default function DashboardPage() {
               </div>
               
               {/* Footer with message count */}
-              <div className="border-t border-slate-700 px-6 py-3">
+              <div className="border-t border-slate-700 px-5 py-3">
                 <p className="text-xs text-slate-400 text-center">
                   {messages && messages.length > 0 
                     ? `${messages.length} message${messages.length === 1 ? '' : 's'}`
@@ -1086,7 +1086,7 @@ export default function DashboardPage() {
             {/* Modal */}
             <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+              <div className="flex items-center justify-between border-b border-slate-700 px-5 py-3">
                 <div>
                   <h2 className="text-xl font-semibold text-white">
                     Files
@@ -1189,7 +1189,7 @@ export default function DashboardPage() {
               </div>
               
               {/* Footer with file count */}
-              <div className="border-t border-slate-700 px-6 py-3">
+              <div className="border-t border-slate-700 px-5 py-3">
                 <p className="text-xs text-slate-400 text-center">
                   {files && files.length > 0 
                     ? `${files.length} file${files.length === 1 ? '' : 's'}`
@@ -1217,7 +1217,7 @@ export default function DashboardPage() {
             {/* Modal */}
             <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+              <div className="flex items-center justify-between border-b border-slate-700 px-5 py-3">
                 <div>
                   <h2 className="text-xl font-semibold text-white">
                     Recordings
@@ -1356,7 +1356,7 @@ export default function DashboardPage() {
               </div>
               
               {/* Footer */}
-              <div className="border-t border-slate-700 px-6 py-3">
+              <div className="border-t border-slate-700 px-5 py-3">
                 <div className="text-xs text-slate-400 text-center">
                   {recordings && recordings.length > 0 
                     ? `${recordings.length} recording${recordings.length === 1 ? '' : 's'}`
@@ -1379,7 +1379,7 @@ export default function DashboardPage() {
               onClick={() => toggleInsights(meetingId)}
             />
             <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+              <div className="flex items-center justify-between border-b border-slate-700 px-5 py-3">
                 <div>
                   <h2 className="text-xl font-semibold text-white">Transcript & Summary</h2>
                   {meeting && (
@@ -1469,7 +1469,7 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-              <div className="border-t border-slate-700 px-6 py-3">
+              <div className="border-t border-slate-700 px-5 py-3">
                 <div className="text-xs text-slate-400 text-center">
                   {items && items.length > 0 ? `${items.length} item${items.length === 1 ? '' : 's'}` : 'No items'}
                 </div>
