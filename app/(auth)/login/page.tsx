@@ -40,7 +40,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         {/* soft background glow */}
         <div className="pointer-events-none absolute inset-x-6 -top-10 -z-10 h-40 rounded-3xl bg-gradient-to-r from-sky-500/25 via-indigo-500/20 to-emerald-400/20 blur-3xl" />
-        <div className="w-full space-y-6 rounded-2xl border border-slate-800/80 bg-slate-950/80 p-8 shadow-xl shadow-slate-950/60 backdrop-blur-md">
+        <div className="w-full space-y-6 rounded-2xl border border-slate-800/80 bg-slate-950/80 p-8 shadow-xl shadow-slate-950/60 backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-1 hover:border-sky-500/40 hover:shadow-2xl hover:shadow-sky-900/60">
           <header className="space-y-2 text-center">
             <h1 className="text-3xl font-semibold tracking-tight text-white">Sign in</h1>
             <p className="text-sm text-slate-300">
@@ -63,7 +63,7 @@ export default function LoginPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
-              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 placeholder:text-slate-500 shadow-sm shadow-slate-950/40 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-600/70"
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 placeholder:text-slate-500 shadow-sm shadow-slate-950/40 transition-colors duration-150 ease-out hover:border-slate-500 hover:bg-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-600/70"
             />
           </label>
           <label className="block text-sm font-medium text-slate-200">
@@ -74,7 +74,7 @@ export default function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="••••••••"
-              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 placeholder:text-slate-500 shadow-sm shadow-slate-950/40 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-600/70"
+              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 placeholder:text-slate-500 shadow-sm shadow-slate-950/40 transition-colors duration-150 ease-out hover:border-slate-500 hover:bg-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-600/70"
             />
           </label>
           <button
