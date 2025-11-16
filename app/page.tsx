@@ -10,7 +10,7 @@ export default function Home() {
         <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
           Collaborator
         </h1>
-        <p className="mx-auto mt-3 max-w-2xl text-slate-300">
+        <p className="mx-auto mt-3 max-w-none text-slate-300 whitespace-normal sm:whitespace-nowrap">
           Meet, share your screen, record sessions, and get transcripts with AI summaries — all in one place.
         </p>
         <div className="mt-6 flex items-center justify-center gap-3">
@@ -33,16 +33,16 @@ export default function Home() {
       <section className="mx-auto mt-14 max-w-5xl">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {/* Meetings */}
-          <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:bg-slate-900 hover:border-slate-600/60">
-            <div className="flex items-start gap-3">
+          <div className="flex h-full min-h-[180px] rounded-xl border border-slate-800 bg-gradient-to-b from-slate-900/80 via-slate-900/60 to-slate-950/80 p-[1px] shadow-sm shadow-slate-950/40 transition-transform duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-900/40">
+            <div className="flex w-full items-start gap-4 rounded-[0.9rem] bg-slate-950/70 px-5 py-5">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 border border-sky-500/30">
                 <svg className="h-5 w-5 text-sky-300" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M2 6a2 2 0 012-2h7a2 2 0 012 2v1l3-2v10l-3-2v1a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                 </svg>
               </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">Meetings</h3>
-                <p className="mt-1 text-sm text-slate-300">
+              <div className="flex flex-1 flex-col justify-start">
+                <h3 className="text-base font-semibold text-white leading-tight">Meetings</h3>
+                <p className="mt-2 text-sm text-slate-300 leading-relaxed">
                   Create or join meetings in seconds with reliable audio/video powered by 100ms.
                 </p>
               </div>
@@ -50,16 +50,16 @@ export default function Home() {
           </div>
 
           {/* Recordings */}
-          <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:bg-slate-900 hover:border-slate-600/60">
-            <div className="flex items-start gap-3">
+          <div className="flex h-full min-h-[180px] rounded-xl border border-slate-800 bg-gradient-to-b from-slate-900/80 via-slate-900/60 to-slate-950/80 p-[1px] shadow-sm shadow-slate-950/40 transition-transform duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-900/40">
+            <div className="flex w-full items-start gap-4 rounded-[0.9rem] bg-slate-950/70 px-5 py-5">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-rose-500/20 border border-rose-500/30">
                 <svg className="h-5 w-5 text-rose-300" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                 </svg>
               </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">Recordings</h3>
-                <p className="mt-1 text-sm text-slate-300">
+              <div className="flex flex-1 flex-col justify-start">
+                <h3 className="text-base font-semibold text-white leading-tight">Recordings</h3>
+                <p className="mt-2 text-sm text-slate-300 leading-relaxed">
                   Start/stop recordings, then download the correct MP4 directly from your dashboard.
                 </p>
               </div>
@@ -67,16 +67,16 @@ export default function Home() {
           </div>
 
           {/* Transcripts & AI Summaries */}
-          <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-4 transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:bg-slate-900 hover:border-slate-600/60">
-            <div className="flex items-start gap-3">
+          <div className="flex h-full min-h-[180px] rounded-xl border border-slate-800 bg-gradient-to-b from-slate-900/80 via-slate-900/60 to-slate-950/80 p-[1px] shadow-sm shadow-slate-950/40 transition-transform duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-900/40">
+            <div className="flex w-full items-start gap-4 rounded-[0.9rem] bg-slate-950/70 px-5 py-5">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 border border-emerald-500/30">
                 <svg className="h-5 w-5 text-emerald-300" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M4 3h12a1 1 0 011 1v10a2 2 0 01-2 2H6l-4 3V4a1 1 0 011-1z" />
                 </svg>
               </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">Transcripts & AI Summaries</h3>
-                <p className="mt-1 text-sm text-slate-300">
+              <div className="flex flex-1 flex-col justify-start">
+                <h3 className="text-base font-semibold text-white leading-tight">Transcripts & AI Summaries</h3>
+                <p className="mt-2 text-sm text-slate-300 leading-relaxed">
                   Read transcripts and concise AI summaries in a clean modal — copy or review later.
                 </p>
               </div>
