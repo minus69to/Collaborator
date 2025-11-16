@@ -1006,34 +1006,42 @@ export default function DashboardPage() {
                       const initials = getInitials(msg.display_name || "");
                       const timestamp = new Date(msg.created_at);
                       const dateString = timestamp.toLocaleDateString();
-                      const timeString = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                      
+                      const timeString = timestamp.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+
                       return (
                         <div
                           key={msg.id}
-                          className={`flex gap-3 ${isLocalMessage ? 'flex-row-reverse' : ''}`}
+                          className={`flex items-start gap-3 ${isLocalMessage ? "flex-row-reverse" : ""}`}
                         >
                           {/* Avatar */}
-                          <div className={`${avatarColor} flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white`}>
+                          <div
+                            className={`${avatarColor} flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white`}
+                          >
                             {initials}
                           </div>
-                          
-                          {/* Message Content */}
-                          <div className={`flex flex-col max-w-[75%] ${isLocalMessage ? 'items-end' : 'items-start'}`}>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-semibold text-white">
-                                {isLocalMessage ? 'You' : msg.display_name}
+
+                          {/* Message bubble (aligned top with avatar) */}
+                          <div
+                            className={`flex max-w-[75%] ${
+                              isLocalMessage ? "justify-end" : "justify-start"
+                            }`}
+                          >
+                            <div
+                              className={`rounded-xl px-3 py-2 ${
+                                isLocalMessage
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-slate-700 text-slate-100"
+                              }`}
+                            >
+                              <span className="mb-0.5 block text-[11px] opacity-80">
+                                {isLocalMessage ? "You" : msg.display_name} • {dateString} {timeString}
                               </span>
-                              <span className="text-xs text-slate-400">
-                                {dateString} {timeString}
-                              </span>
-                            </div>
-                            <div className={`rounded-lg px-3 py-2 ${
-                              isLocalMessage 
-                                ? 'bg-blue-600 text-white' 
-                                : 'bg-slate-700 text-slate-100'
-                            }`}>
-                              <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                              <p className="text-sm whitespace-pre-wrap break-words">
+                                {msg.message}
+                              </p>
                             </div>
                           </div>
                         </div>
