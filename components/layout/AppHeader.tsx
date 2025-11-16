@@ -26,6 +26,11 @@ export function AppHeader() {
     router.refresh();
   }
 
+  // Hide header inside live meeting pages
+  if (pathname && pathname.startsWith("/meeting/")) {
+    return null;
+  }
+
   return (
     // Hide header entirely for unauthenticated users
     status !== "authenticated" || !user ? null : (
