@@ -963,12 +963,12 @@ export default function DashboardPage() {
           <div key={meetingId}>
             {/* Backdrop */}
             <div
-              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
               onClick={() => toggleChatHistory(meetingId)}
             />
             
             {/* Modal */}
-            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
+            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 transform rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl shadow-slate-950/80 backdrop-blur-md max-h-[85vh] flex flex-col transition-all duration-200 ease-out">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-slate-700 px-5 py-3">
                 <div>
@@ -1071,12 +1071,12 @@ export default function DashboardPage() {
           <div key={meetingId}>
             {/* Backdrop */}
             <div
-              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
               onClick={() => toggleFilesHistory(meetingId)}
             />
             
             {/* Modal */}
-            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
+            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 transform rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl shadow-slate-950/80 backdrop-blur-md max-h-[85vh] flex flex-col transition-all duration-200 ease-out">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-slate-700 px-5 py-3">
                 <div>
@@ -1202,12 +1202,12 @@ export default function DashboardPage() {
           <div key={meetingId}>
             {/* Backdrop */}
             <div
-              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
               onClick={() => toggleRecordingsHistory(meetingId)}
             />
             
             {/* Modal */}
-            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
+            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transform rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl shadow-slate-950/80 backdrop-blur-md max-h-[85vh] flex flex-col transition-all duration-200 ease-out">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-slate-700 px-5 py-3">
                 <div>
@@ -1367,10 +1367,10 @@ export default function DashboardPage() {
         return (
           <div key={meetingId}>
             <div
-              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
               onClick={() => toggleInsights(meetingId)}
             />
-            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
+            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transform rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl shadow-slate-950/80 backdrop-blur-md max-h-[85vh] flex flex-col transition-all duration-200 ease-out">
               <div className="flex items-center justify-between border-b border-slate-700 px-5 py-3">
                 <div>
                   <h2 className="text-xl font-semibold text-white">Transcript & Summary</h2>
