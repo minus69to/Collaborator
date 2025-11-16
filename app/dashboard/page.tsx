@@ -800,35 +800,41 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
-        <p>Loading dashboard...</p>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-100">
+        <p className="text-sm text-slate-300">Loading dashboard...</p>
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-16 text-slate-100">
+    <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 px-6 py-16 text-slate-100">
       <div className="mx-auto max-w-4xl">
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold">Meeting Dashboard</h1>
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl font-semibold tracking-tight text-white">Meeting Dashboard</h1>
           <p className="mt-2 text-sm text-slate-300">
-            View all meetings you've created or joined
+            View all meetings you've created or joined.
           </p>
         </header>
 
         {error && (
-          <div className="mb-4 rounded-md bg-rose-500/20 px-4 py-3 text-sm text-rose-300">
-            {error}
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+            <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-rose-500/40">
+              <span className="text-xs font-bold">!</span>
+            </div>
+            <div>
+              <p className="font-semibold">Something went wrong</p>
+              <p className="text-rose-100/90">{error}</p>
+            </div>
           </div>
         )}
 
         {meetings.length === 0 ? (
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-8 text-center">
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-950/80 p-8 text-center shadow-lg shadow-slate-950/60 backdrop-blur-md">
             <div className="mb-4 text-6xl">📊</div>
             <p className="text-slate-400">No meetings yet</p>
             <Link
               href="/meetings"
-              className="mt-4 inline-block rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400"
+              className="mt-4 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-900/40 transition-all duration-150 ease-out hover:from-sky-400 hover:to-indigo-400 hover:shadow-md hover:ring-2 hover:ring-sky-400/50 hover:scale-[1.02] active:scale-95 active:translate-y-[1px]"
             >
               Create Your First Meeting
             </Link>
@@ -843,109 +849,77 @@ export default function DashboardPage() {
               return (
                 <article
                   key={record.meeting.id}
-                  className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 shadow shadow-slate-950/40"
+                  className="rounded-2xl border border-slate-800/80 bg-gradient-to-b from-slate-900/95 via-slate-950/95 to-slate-950 p-4 shadow-lg shadow-slate-950/50 transition-transform duration-200 hover:-translate-y-1 hover:border-sky-500/50 hover:shadow-xl hover:shadow-sky-900/60"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-semibold text-white">{record.meeting.title}</h2>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            isHost
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : "bg-blue-500/20 text-blue-400"
-                          }`}
-                        >
-                          {isHost ? "👑 Host" : "👤 Participant"}
-                        </span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            isActive
-                              ? "bg-green-500/20 text-green-400"
-                              : isEnded
-                              ? "bg-slate-500/20 text-slate-400"
-                              : "bg-yellow-500/20 text-yellow-400"
-                          }`}
-                        >
-                          {isActive ? "Active" : isEnded ? "Ended" : "Scheduled"}
-                        </span>
-                      </div>
-                      {record.meeting.description && (
-                        <p className="mt-2 text-sm text-slate-300">
-                          {record.meeting.description}
-                        </p>
-                      )}
-                      <div className="mt-2.5 space-y-1 text-xs text-slate-400">
-                        <p>
-                          Joined: {new Date(record.joined_at).toLocaleString()}
-                          {record.display_name && ` as "${record.display_name}"`}
-                        </p>
-                        {record.left_at && (
-                          <p>Left: {new Date(record.left_at).toLocaleString()}</p>
-                        )}
-                        {record.meeting.ended_at && (
-                          <p>Meeting ended: {new Date(record.meeting.ended_at).toLocaleString()}</p>
-                        )}
-                        <p>Created: {new Date(record.meeting.created_at).toLocaleString()}</p>
-                      </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold text-white">{record.meeting.title}</h2>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          isHost
+                            ? "bg-yellow-500/20 text-yellow-400"
+                            : "bg-blue-500/20 text-blue-400"
+                        }`}
+                      >
+                        {isHost ? "👑 Host" : "👤 Participant"}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          isActive
+                            ? "bg-green-500/20 text-green-400"
+                            : isEnded
+                            ? "bg-slate-500/20 text-slate-400"
+                            : "bg-yellow-500/20 text-yellow-400"
+                        }`}
+                      >
+                        {isActive ? "Active" : isEnded ? "Ended" : "Scheduled"}
+                      </span>
                     </div>
-                    <div className="mt-3.5 flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {isActive && (
                         <Link
                           href={`/meeting/${record.meeting.id}`}
-                          className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-sky-400 border border-sky-400/30"
+                          className="inline-flex h-8 items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-4 text-xs md:text-sm font-semibold text-white shadow-sm shadow-sky-900/40 transition-all duration-150 ease-out hover:from-sky-400 hover:to-indigo-400 hover:shadow-md hover:ring-2 hover:ring-sky-400/50 hover:scale-[1.01] active:scale-95 active:translate-y-[1px]"
                         >
                           {isHost ? "Host Meeting" : "Join Again"}
                         </Link>
                       )}
                       <button
                         onClick={() => toggleChatHistory(record.meeting.id)}
-                        className="flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-600 border border-slate-600/40"
+                        className="inline-flex h-8 items-center gap-2 rounded-full border border-slate-700/70 bg-slate-900 px-3 text-xs md:text-sm font-semibold text-slate-100 shadow-sm shadow-slate-950/40 transition-all duration-150 ease-out hover:bg-slate-800 hover:border-sky-400/50 hover:text-white hover:shadow-md active:scale-95"
                         disabled={loadingChat.has(record.meeting.id)}
                       >
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                         </svg>
-                        {loadingChat.has(record.meeting.id) ? (
-                          "Loading..."
-                        ) : (
-                          "View Chat History"
-                        )}
+                        {loadingChat.has(record.meeting.id) ? "Loading..." : "Chat"}
                       </button>
                       
                       <button
                         onClick={() => toggleFilesHistory(record.meeting.id)}
-                        className="flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-600 border border-slate-600/40"
+                        className="inline-flex h-8 items-center gap-2 rounded-full border border-slate-700/70 bg-slate-900 px-3 text-xs md:text-sm font-semibold text-slate-100 shadow-sm shadow-slate-950/40 transition-all duration-150 ease-out hover:bg-slate-800 hover:border-sky-400/50 hover:text-white hover:shadow-md active:scale-95"
                         disabled={loadingFiles.has(record.meeting.id)}
                       >
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
                         </svg>
-                        {loadingFiles.has(record.meeting.id) ? (
-                          "Loading..."
-                        ) : (
-                          "View Files"
-                        )}
+                        {loadingFiles.has(record.meeting.id) ? "Loading..." : "Files"}
                       </button>
                       
                       <button
                         onClick={() => toggleRecordingsHistory(record.meeting.id)}
-                        className="flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-600 border border-slate-600/40"
+                        className="inline-flex h-8 items-center gap-2 rounded-full border border-slate-700/70 bg-slate-900 px-3 text-xs md:text-sm font-semibold text-slate-100 shadow-sm shadow-slate-950/40 transition-all duration-150 ease-out hover:bg-slate-800 hover:border-sky-400/50 hover:text-white hover:shadow-md active:scale-95"
                         disabled={loadingRecordings.has(record.meeting.id)}
                       >
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                         </svg>
-                        {loadingRecordings.has(record.meeting.id) ? (
-                          "Loading..."
-                        ) : (
-                          "View Recordings"
-                        )}
+                        {loadingRecordings.has(record.meeting.id) ? "Loading..." : "Recordings"}
                       </button>
                       
                       <button
                         onClick={() => toggleInsights(record.meeting.id)}
-                        className="flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-slate-600 border border-slate-600/40"
+                        className="inline-flex h-8 items-center gap-2 rounded-full border border-slate-700/70 bg-slate-900 px-3 text-xs md:text-sm font-semibold text-slate-100 shadow-sm shadow-slate-950/40 transition-all duration-150 ease-out hover:bg-slate-800 hover:border-sky-400/50 hover:text-white hover:shadow-md active:scale-95"
                         disabled={loadingInsights.has(record.meeting.id)}
                       >
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -954,6 +928,24 @@ export default function DashboardPage() {
                         {loadingInsights.has(record.meeting.id) ? "Loading..." : "Transcript & Summary"}
                       </button>
                     </div>
+                  </div>
+                  {record.meeting.description && (
+                    <p className="mt-2 text-sm text-slate-300">
+                      {record.meeting.description}
+                    </p>
+                  )}
+                  <div className="mt-2.5 space-y-1 text-xs text-slate-400">
+                    <p>
+                      Joined: {new Date(record.joined_at).toLocaleString()}
+                      {record.display_name && ` as "${record.display_name}"`}
+                    </p>
+                    {record.left_at && (
+                      <p>Left: {new Date(record.left_at).toLocaleString()}</p>
+                    )}
+                    {record.meeting.ended_at && (
+                      <p>Meeting ended: {new Date(record.meeting.ended_at).toLocaleString()}</p>
+                    )}
+                    <p>Created: {new Date(record.meeting.created_at).toLocaleString()}</p>
                   </div>
                 </article>
               );
