@@ -1919,21 +1919,40 @@ function MeetingRoom() {
 
     // Show join form
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-6 py-16 text-slate-100">
-        <div className="w-full max-w-md space-y-6 rounded-xl border border-slate-800 bg-slate-900/70 p-8">
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold">{meeting.title}</h1>
+      <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 px-6 py-16 text-slate-100">
+        {/* Decorative glow */}
+        <div className="pointer-events-none absolute left-1/2 top-10 -z-10 h-64 w-64 -translate-x-1/2 rounded-full bg-gradient-to-tr from-sky-500/20 via-indigo-500/15 to-emerald-400/15 blur-3xl" />
+
+        <div className="relative w-full max-w-md space-y-6 rounded-2xl border border-slate-700/80 bg-slate-900/95 p-8 shadow-xl shadow-slate-950/70 backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-2xl hover:border-sky-500/60">
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => router.push("/meetings")}
+            className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700/70 text-slate-300 shadow-sm shadow-slate-950/50 transition hover:bg-slate-800 hover:text-white hover:border-slate-500 active:scale-95"
+            title="Back to meetings"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-white">{meeting.title}</h1>
             {meeting.description && (
-              <p className="mt-2 text-sm text-slate-300">{meeting.description}</p>
+              <p className="text-sm text-slate-300">{meeting.description}</p>
             )}
             {isHost && (
-              <p className="mt-2 text-xs text-emerald-400">You are the host</p>
+              <p className="text-xs font-semibold text-emerald-400">You are the host</p>
             )}
           </div>
           
           <form onSubmit={handleJoin} className="space-y-4">
             <div>
-              <label htmlFor="displayName" className="block text-sm font-medium text-slate-200 mb-2">
+              <label htmlFor="displayName" className="mb-2 block text-sm font-medium text-slate-200">
                 Your Name
               </label>
               <input
@@ -1942,24 +1961,24 @@ function MeetingRoom() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Enter your name"
-                className="w-full rounded-md border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-600"
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 shadow-sm shadow-slate-950/40 transition-colors duration-150 ease-out hover:border-slate-500 hover:bg-slate-900/90 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-600/80"
                 disabled={joining}
                 autoFocus
               />
               <p className="mt-1 text-xs text-slate-400">
-                This name will be displayed in the meeting
+                This name will be displayed in the meeting.
               </p>
             </div>
             
             <button
               type="submit"
               disabled={joining || !displayName.trim()}
-              className="w-full rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-1 inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-900/40 transition-all duration-150 ease-out hover:from-sky-400 hover:to-indigo-400 hover:shadow-md hover:ring-2 hover:ring-sky-400/50 hover:scale-[1.01] active:scale-95 active:translate-y-[1px] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {joining ? "Joining..." : isHost ? "Start Meeting" : "Request to Join"}
             </button>
             
-            {error && <p className="text-sm text-rose-300 text-center">{error}</p>}
+            {error && <p className="text-center text-sm text-rose-300">{error}</p>}
           </form>
         </div>
       </div>
