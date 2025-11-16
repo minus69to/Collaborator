@@ -25,6 +25,9 @@ export default function MeetingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [copiedMeetingId, setCopiedMeetingId] = useState<string | null>(null);
+  const [meetingIdPendingDelete, setMeetingIdPendingDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -167,6 +170,52 @@ export default function MeetingsPage() {
     }
   }
 
+  function promptDeleteMeeting(meetingId: string) {
+    setError(null);
+    setSuccess(null);
+    setMeetingIdPendingDelete(meetingId);
+  }
+
+  async function confirmDeleteMeeting() {
+    if (!meetingIdPendingDelete) return;
+    setIsDeleting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch(`/api/meetings/delete?meetingId=${encodeURIComponent(meetingIdPendingDelete)}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error ?? "Failed to delete meeting");
+      }
+      setSuccess("Meeting deleted.");
+      setMeetingIdPendingDelete(null);
+      await fetchMeetings();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete meeting");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  function cancelDeleteMeeting() {
+    setMeetingIdPendingDelete(null);
+  }
+
+  async function handleCopyMeetingId(meetingId: string) {
+    try {
+      await navigator.clipboard.writeText(meetingId);
+      setCopiedMeetingId(meetingId);
+      setTimeout(() => {
+        setCopiedMeetingId((current) => (current === meetingId ? null : current));
+      }, 2000);
+    } catch {
+      // As a fallback, show a basic alert
+      alert("Failed to copy meeting ID. Please copy it manually.");
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 px-6 py-16 text-slate-100">
       <div className="mx-auto flex max-w-4xl flex-col gap-8">
@@ -280,7 +329,48 @@ export default function MeetingsPage() {
           </div>
         )}
 
-        <section className="w-full space-y-3">
+        {meetingIdPendingDelete && (
+          <div>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              onClick={cancelDeleteMeeting}
+            />
+            {/* Modal */}
+            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 transform rounded-xl border border-amber-500/50 bg-slate-900/95 px-5 py-4 shadow-2xl shadow-amber-900/50">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-amber-500/30 text-amber-50">
+                  !
+                </div>
+                <div className="space-y-1 text-sm text-amber-50">
+                  <p className="font-semibold">Hide this meeting from the Meetings page?</p>
+                  <p className="text-amber-100/90">
+                    This will remove the meeting from your Meetings list, but it will still appear in
+                    your dashboard history and keep all related data.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  onClick={cancelDeleteMeeting}
+                  disabled={isDeleting}
+                  className="rounded-md border border-slate-600/70 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:bg-slate-800/80"
+                >
+                  No
+                </button>
+                <button
+                  onClick={confirmDeleteMeeting}
+                  disabled={isDeleting}
+                  className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-sm shadow-amber-900/40 transition hover:bg-amber-400 disabled:opacity-60"
+                >
+                  {isDeleting ? "Hiding…" : "Yes, hide"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <section className="w-full space-y-3 mt-4">
           {meetings.length === 0 && !isLoading && !error && (
             <p className="text-center text-sm text-slate-400">No meetings yet.</p>
           )}
@@ -296,19 +386,43 @@ export default function MeetingsPage() {
                   <p className="text-xs text-slate-500">
                     Created: {new Date(meeting.created_at).toLocaleString()}
                   </p>
-                  {meeting.hms_room_id && (
-                    <p className="mt-2 text-xs text-slate-400">
-                      Room ID: {meeting.hms_room_id.substring(0, 12)}...
-                    </p>
-                  )}
+                  <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                    <span>Meeting ID:</span>
+                    <code className="rounded-md bg-slate-950/70 px-2 py-0.5 font-mono text-[11px] text-slate-100 border border-slate-700/70">
+                      {meeting.id}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyMeetingId(meeting.id)}
+                      className="rounded-md border border-slate-700/70 px-2 py-0.5 text-[11px] font-semibold text-slate-100 hover:bg-slate-800 hover:border-sky-400/60"
+                    >
+                      {copiedMeetingId === meeting.id ? "Copied" : "Copy"}
+                    </button>
+                  </div>
                 </div>
                 {meeting.hms_room_id && (
-                  <Link
-                    href={`/meeting/${meeting.id}`}
-                    className="ml-4 inline-flex items-center justify-center rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-900/40 transition-all duration-150 ease-out hover:bg-sky-400 hover:shadow-md hover:ring-2 hover:ring-sky-400/50 hover:scale-[1.01] active:scale-95 active:translate-y-[1px]"
-                  >
-                    Join meeting
-                  </Link>
+                  <div className="ml-4 flex items-center gap-3">
+                    <Link
+                      href={`/meeting/${meeting.id}`}
+                      className="inline-flex items-center justify-center rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-900/40 transition-all duration-150 ease-out hover:bg-sky-400 hover:shadow-md hover:ring-2 hover:ring-sky-400/50 hover:scale-[1.01] active:scale-95 active:translate-y-[1px]"
+                    >
+                      Join meeting
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => promptDeleteMeeting(meeting.id)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-500/60 text-rose-300 shadow-sm shadow-rose-900/40 transition hover:bg-rose-600/20 hover:text-rose-100"
+                      title="Delete meeting"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path
+                          fillRule="evenodd"
+                          d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v9a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM8 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 )}
               </div>
             </article>
