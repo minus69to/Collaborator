@@ -29,7 +29,7 @@ export function AppHeader() {
   return (
     // Hide header entirely for unauthenticated users
     status !== "authenticated" || !user ? null : (
-      <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-gradient-to-b from-slate-950/80 via-slate-950/70 to-slate-900/80 text-slate-100 shadow-lg shadow-slate-950/60 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-gradient-to-b from-slate-950/90 via-slate-950/85 to-slate-900/90 text-slate-100 shadow-lg shadow-slate-950/70 backdrop-blur-xl transition-all duration-200 ease-out hover:border-sky-500/40 hover:shadow-sky-900/70">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
           <div className="flex items-center gap-2">
             <span className="text-lg font-semibold tracking-tight text-white drop-shadow-sm">
@@ -37,7 +37,7 @@ export function AppHeader() {
             </span>
           </div>
 
-          <nav className="hidden flex-1 items-center justify-center gap-2.5 text-sm font-medium text-slate-300 sm:flex">
+          <nav className="hidden flex-1 items-center justify-center gap-4 text-sm font-medium text-slate-300 sm:flex ml-6">
             {navLinks.map((link) => {
               const isActive =
                 pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href));
@@ -45,10 +45,10 @@ export function AppHeader() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`inline-flex items-center justify-center rounded-full px-3 py-1.5 border transition-all duration-150 ease-out ${
+                  className={`inline-flex items-center justify-center rounded-full px-4 py-1.5 border transition-all duration-150 ease-out ${
                     isActive
-                      ? "bg-slate-900 text-white border-sky-500/60 shadow-sm shadow-sky-900/50"
-                      : "border-slate-700/50 hover:bg-slate-900/80 hover:text-slate-100 hover:border-sky-500/40 hover:shadow-sm hover:shadow-slate-900/60"
+                      ? "bg-slate-950 text-white border-sky-400/70 shadow-sm shadow-sky-900/60"
+                      : "border-slate-700/60 hover:bg-slate-900/80 hover:text-slate-100 hover:border-sky-400/50 hover:shadow-sm hover:shadow-slate-900/60"
                   }`}
                 >
                   {link.label}
