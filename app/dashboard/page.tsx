@@ -1130,7 +1130,7 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={file.id}
-                          className="flex items-start gap-3 rounded-lg border border-slate-700 bg-slate-900/50 p-3 transition hover:bg-slate-900"
+                          className="flex items-start gap-3 rounded-lg border border-slate-700 bg-slate-900/60 p-3 shadow-sm shadow-slate-950/40 transition-all duration-150 ease-out hover:-translate-y-[1px] hover:border-sky-500/40 hover:bg-slate-900 hover:shadow-md hover:shadow-slate-950/60"
                         >
                           {/* File Icon */}
                           <div className="flex-shrink-0 text-2xl">
@@ -1272,7 +1272,7 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={recording.id}
-                          className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-900/50 p-3 hover:bg-slate-900 transition"
+                          className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-900/60 p-3 shadow-sm shadow-slate-950/40 transition-all duration-150 ease-out hover:-translate-y-[1px] hover:border-sky-500/40 hover:bg-slate-900 hover:shadow-md hover:shadow-slate-950/60"
                         >
                           {/* File Info */}
                           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -1402,7 +1402,7 @@ export default function DashboardPage() {
                       const content = insightContentByRecording.get(it.recordingId);
                       const hasAny = it.hasTranscript || it.hasSummary;
                       return (
-                        <div key={it.recordingId} className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                        <div key={it.recordingId} className="rounded-lg border border-slate-700 bg-slate-900/60 p-3 shadow-sm shadow-slate-950/40 transition-all duration-150 ease-out hover:-translate-y-[1px] hover:border-sky-500/40 hover:bg-slate-900 hover:shadow-md hover:shadow-slate-950/60">
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
