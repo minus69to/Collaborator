@@ -26,7 +26,19 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setError(error.message);
+      const raw = error.message || "";
+      const lower = raw.toLowerCase();
+      let friendly = raw;
+
+      if (lower.includes("invalid login credentials")) {
+        friendly = "Incorrect email or password. Please try again.";
+      } else if (lower.includes("email not confirmed")) {
+        friendly = "Please confirm your email address from your inbox, then try signing in again.";
+      } else if (!friendly) {
+        friendly = "We couldn't sign you in. Please check your details and try again.";
+      }
+
+      setError(friendly);
     } else {
       setSuccess("Signed in! Redirecting to your meetings…");
       router.push("/meetings");
@@ -85,8 +97,28 @@ export default function LoginPage() {
             {isLoading ? "Signing in…" : "Sign in"}
           </button>
         </form>
-        {error && <p className="text-sm text-rose-300">{error}</p>}
-        {success && <p className="text-sm text-emerald-300">{success}</p>}
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+            <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-rose-500/30">
+              <span className="text-xs font-bold">!</span>
+            </div>
+            <div>
+              <p className="font-semibold">Sign in failed</p>
+              <p className="text-rose-100/90">{error}</p>
+            </div>
+          </div>
+        )}
+        {success && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+            <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/30">
+              <span className="text-xs font-bold">✓</span>
+            </div>
+            <div>
+              <p className="font-semibold">Signed in</p>
+              <p className="text-emerald-100/90">{success}</p>
+            </div>
+          </div>
+        )}
         <footer className="text-center text-sm text-slate-400">
           Need an account?{" "}
           <Link className="font-semibold text-sky-400 hover:text-sky-300" href="/signup">

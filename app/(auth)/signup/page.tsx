@@ -20,7 +20,7 @@ export default function SignupPage() {
     setSuccess(null);
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError("Passwords do not match. Please re-enter them and try again.");
       return;
     }
 
@@ -105,8 +105,28 @@ export default function SignupPage() {
             {isLoading ? "Signing up…" : "Sign up"}
           </button>
         </form>
-        {error && <p className="text-sm text-rose-300">{error}</p>}
-        {success && <p className="text-sm text-emerald-300">{success}</p>}
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+            <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-rose-500/30">
+              <span className="text-xs font-bold">!</span>
+            </div>
+            <div>
+              <p className="font-semibold">Something went wrong</p>
+              <p className="text-rose-100/90">{error}</p>
+            </div>
+          </div>
+        )}
+        {success && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+            <div className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/30">
+              <span className="text-xs font-bold">✓</span>
+            </div>
+            <div>
+              <p className="font-semibold">Check your inbox</p>
+              <p className="text-emerald-100/90">{success}</p>
+            </div>
+          </div>
+        )}
         <footer className="text-center text-sm text-slate-400">
           Already have an account?{" "}
           <Link className="font-semibold text-sky-400 hover:text-sky-300" href="/login">
