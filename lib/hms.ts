@@ -89,31 +89,65 @@ export async function getHMSRoom(roomId: string): Promise<HMSRoom | null> {
  */
 export async function listHMSRecordings(roomId: string) {
   try {
-    // List all recordings for a room
-    // The SDK may return an iterable, so we need to convert it to an array
-    const recordingsIterable = hms.recordings.list({
-      room_id: roomId,
-    });
-    
-    // Convert iterable to array
-    const recordingsArray: any[] = [];
-    if (Array.isArray(recordingsIterable)) {
-      recordingsArray.push(...recordingsIterable);
-    } else {
-      // Handle async iterable
-      for await (const recording of recordingsIterable as AsyncIterable<any>) {
-        recordingsArray.push(recording);
+    // Primary approach: SDK
+    try {
+      // The SDK may return an iterable, so we need to convert it to an array
+      const recordingsIterable = hms.recordings.list({
+        room_id: roomId,
+      });
+      
+      const recordingsArray: any[] = [];
+      if (Array.isArray(recordingsIterable)) {
+        recordingsArray.push(...recordingsIterable);
+      } else {
+        for await (const recording of recordingsIterable as AsyncIterable<any>) {
+          recordingsArray.push(recording);
+        }
       }
+      
+      return recordingsArray.map((rec: any) => ({
+        id: rec.id,
+        roomId: rec.room_id || roomId,
+        status: rec.status,
+        url: rec.url || null,
+        startedAt: rec.started_at || null,
+        stoppedAt: rec.stopped_at || null,
+      }));
+    } catch (sdkError) {
+      // If SDK call fails due to permission (403) or any reason, fallback to REST with management token
+      const message = sdkError instanceof Error ? sdkError.message : JSON.stringify(sdkError);
+      if (!message.includes("403") && !message.toLowerCase().includes("forbidden")) {
+        throw sdkError;
+      }
+      // REST fallback
+      const managementToken = await generateManagementToken();
+      if (!managementToken) {
+        throw new Error("Failed to generate management token for listing recordings");
+      }
+      const baseUrl = "https://api.100ms.live/v2";
+      const url = `${baseUrl}/recordings?room_id=${encodeURIComponent(roomId)}`;
+      const resp = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${managementToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`REST list recordings failed: ${resp.status} ${text}`);
+      }
+      const data = await resp.json();
+      const items = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+      return items.map((rec: any) => ({
+        id: rec.id,
+        roomId: rec.room_id || roomId,
+        status: rec.status,
+        url: rec.url || null,
+        startedAt: rec.started_at || null,
+        stoppedAt: rec.stopped_at || null,
+      }));
     }
-    
-    return recordingsArray.map((rec: any) => ({
-      id: rec.id,
-      roomId: rec.room_id || roomId,
-      status: rec.status,
-      url: rec.url || null,
-      startedAt: rec.started_at || null,
-      stoppedAt: rec.stopped_at || null,
-    }));
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
     console.error("Failed to list 100ms recordings:", errorMessage);
@@ -301,6 +335,19 @@ export async function getHMSRecording(recordingId: string) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
     throw new Error(`Failed to get recording: ${errorMessage}`);
+  }
+}
+
+/**
+ * Get raw recording assets for a given recording.
+ */
+export async function getHMSRecordingAssets(recordingId: string): Promise<any[]> {
+  try {
+    const recording = await hms.recordings.retrieve(recordingId);
+    return Array.isArray(recording.recording_assets) ? recording.recording_assets : [];
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+    throw new Error(`Failed to get recording assets: ${errorMessage}`);
   }
 }
 

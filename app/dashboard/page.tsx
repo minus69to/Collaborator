@@ -110,6 +110,12 @@ export default function DashboardPage() {
   const [expandedRecordingsMeetings, setExpandedRecordingsMeetings] = useState<Set<string>>(new Set());
   const [meetingRecordings, setMeetingRecordings] = useState<Map<string, RecordingRecord[]>>(new Map());
   const [loadingRecordings, setLoadingRecordings] = useState<Set<string>>(new Set());
+  
+  // Insights (Transcript & Summary) state
+  const [expandedInsightsMeetings, setExpandedInsightsMeetings] = useState<Set<string>>(new Set());
+  const [meetingInsights, setMeetingInsights] = useState<Map<string, any[]>>(new Map());
+  const [loadingInsights, setLoadingInsights] = useState<Set<string>>(new Set());
+  const [insightContentByRecording, setInsightContentByRecording] = useState<Map<string, { transcriptText: string | null; summaryText: string | null; loading: boolean; error?: string }>>(new Map());
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -380,6 +386,287 @@ export default function DashboardPage() {
         }
         return newSet;
       });
+    }
+  }
+
+  // Fetch insights list for a meeting
+  async function fetchInsightsList(meetingId: string) {
+    if (meetingInsights.has(meetingId)) {
+      setExpandedInsightsMeetings(prev => {
+        const next = new Set(prev);
+        if (next.has(meetingId)) next.delete(meetingId);
+        else next.add(meetingId);
+        return next;
+      });
+      return;
+    }
+    setLoadingInsights(prev => new Set(prev).add(meetingId));
+    try {
+      const res = await fetch(`/api/insights/list?meetingId=${meetingId}`);
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || "Failed to load transcript & summary list");
+      }
+      const data = await res.json();
+      const items = data.items || [];
+      setMeetingInsights(prev => {
+        const next = new Map(prev);
+        next.set(meetingId, items);
+        return next;
+      });
+      setExpandedInsightsMeetings(prev => new Set(prev).add(meetingId));
+    } catch (e) {
+      console.error(e);
+      alert(e instanceof Error ? e.message : "Failed to load transcript & summary list");
+    } finally {
+      setLoadingInsights(prev => {
+        const next = new Set(prev);
+        next.delete(meetingId);
+        return next;
+      });
+    }
+  }
+
+  function toggleInsights(meetingId: string) {
+    if (!meetingInsights.has(meetingId)) {
+      fetchInsightsList(meetingId);
+    } else {
+      setExpandedInsightsMeetings(prev => {
+        const next = new Set(prev);
+        if (next.has(meetingId)) next.delete(meetingId);
+        else next.add(meetingId);
+        return next;
+      });
+    }
+  }
+
+  async function openInsight(recordingId: string) {
+    setInsightContentByRecording(prev => {
+      const next = new Map(prev);
+      next.set(recordingId, { transcriptText: null, summaryText: null, loading: true });
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/insights/fetch?recordingId=${recordingId}`);
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Failed to fetch transcript/summary");
+      }
+      setInsightContentByRecording(prev => {
+        const next = new Map(prev);
+        next.set(recordingId, { transcriptText: data.transcriptText || null, summaryText: data.summaryText || null, loading: false });
+        return next;
+      });
+    } catch (e) {
+      setInsightContentByRecording(prev => {
+        const next = new Map(prev);
+        next.set(recordingId, { transcriptText: null, summaryText: null, loading: false, error: e instanceof Error ? e.message : "Failed to fetch" });
+        return next;
+      });
+    }
+  }
+
+  // Helpers to render transcript/summary nicely
+  function renderTranscriptPretty(raw: string | null) {
+    if (!raw) return null;
+    // Try JSON parse to extract segments or text
+    try {
+      const json = JSON.parse(raw);
+      // Common shapes: { transcript: string } | { text: string } | { segments: [{ speaker, start, end, text }] }
+      const textOnly =
+        (json && (json.transcript || json.text)) as string | undefined;
+      if (textOnly && typeof textOnly === "string") {
+        return (
+          <div className="space-y-3 leading-7">
+            {textOnly.split(/\n{2,}/).map((para: string, idx: number) => (
+              <p key={idx} className="text-slate-100 whitespace-pre-wrap break-words">
+                {para.trim()}
+              </p>
+            ))}
+          </div>
+        );
+      }
+      // Structured segments array
+      if (Array.isArray(json?.segments)) {
+        const segments: any[] = json.segments;
+        return (
+          <div className="space-y-3 leading-7">
+            {segments.map((seg: any, idx: number) => {
+              const speaker =
+                seg.speaker || seg.speaker_name || seg.speakerId || "Speaker";
+              const line: string = seg.text || "";
+              return (
+                <div key={idx} className="space-y-1">
+                  <div className="text-xs text-slate-400">
+                    {typeof speaker === "string" ? speaker : "Speaker"}
+                    {seg.start != null && seg.end != null && (
+                      <span className="ml-2">
+                        [{Math.floor(seg.start)}s – {Math.floor(seg.end)}s]
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-slate-100 whitespace-pre-wrap break-words">{line}</p>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+      // Some providers return an array of content blocks [{ title, paragraph, bullets }]
+      if (Array.isArray(json)) {
+        const blocks: any[] = json;
+        const paragraphs: string[] = [];
+        const bullets: string[] = [];
+        blocks.forEach((b: any) => {
+          if (typeof b?.paragraph === "string" && b.paragraph.trim().length) {
+            paragraphs.push(b.paragraph.trim());
+          }
+          if (Array.isArray(b?.bullets)) {
+            b.bullets.forEach((it: any) => {
+              if (typeof it === "string" && it.trim().length) {
+                bullets.push(it.trim());
+              }
+            });
+          }
+        });
+        return (
+          <div className="space-y-4 leading-7">
+            {paragraphs.length > 0 && (
+              <div className="space-y-3">
+                {paragraphs.map((p, i) => (
+                  <p key={i} className="text-slate-100 whitespace-pre-wrap break-words">
+                    {p}
+                  </p>
+                ))}
+              </div>
+            )}
+            {bullets.length > 0 && (
+              <ul className="list-disc pl-5 space-y-1">
+                {bullets.map((b, i) => (
+                  <li key={i} className="text-slate-100">
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {paragraphs.length === 0 && bullets.length === 0 && (
+              <p className="text-slate-300">Transcript not available.</p>
+            )}
+          </div>
+        );
+      }
+      // Fallback to pretty JSON string if unknown
+      const fallback =
+        typeof json === "string"
+          ? json
+          : (json?.paragraph as string) ||
+            (Array.isArray(json?.bullets) ? json.bullets.join("\n") : "");
+      if (fallback) {
+        return (
+          <div className="space-y-3 leading-7">
+            {fallback.split(/\n{2,}/).map((para: string, idx: number) => (
+              <p key={idx} className="text-slate-100 whitespace-pre-wrap break-words">
+                {para.trim()}
+              </p>
+            ))}
+          </div>
+        );
+      }
+      return <p className="text-slate-300">Transcript not available.</p>;
+    } catch {
+      // Treat as plain text
+      return (
+        <div className="space-y-3 leading-7">
+          {raw.split(/\n{2,}/).map((para: string, idx: number) => (
+            <p key={idx} className="text-slate-100 whitespace-pre-wrap break-words">
+              {para.trim()}
+            </p>
+          ))}
+        </div>
+      );
+    }
+  }
+
+  function renderSummaryPretty(raw: string | null) {
+    if (!raw) return null;
+    try {
+      const json = JSON.parse(raw);
+      // If the summary is an array of blocks
+      if (Array.isArray(json)) {
+        const blocks: any[] = json;
+        const bulletsAgg: string[] = [];
+        const paragraphsAgg: string[] = [];
+        blocks.forEach((b: any) => {
+          if (Array.isArray(b?.bullets)) {
+            b.bullets.forEach((it: any) => {
+              if (typeof it === "string" && it.trim().length) {
+                bulletsAgg.push(it.trim());
+              }
+            });
+          }
+          if (typeof b?.paragraph === "string" && b.paragraph.trim().length) {
+            paragraphsAgg.push(b.paragraph.trim());
+          }
+        });
+        return (
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-white">AI Summary</h3>
+            {bulletsAgg.length > 0 && (
+              <ul className="list-disc pl-5 space-y-1">
+                {bulletsAgg.map((b, i) => (
+                  <li key={i} className="text-slate-100">
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {paragraphsAgg.length > 0 && (
+              <div className="space-y-3">
+                {paragraphsAgg.map((p, i) => (
+                  <p key={i} className="text-slate-100 whitespace-pre-wrap break-words leading-7">
+                    {p}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      }
+      const title: string | undefined = json.title || json.heading || "AI Summary";
+      const bullets: string[] | undefined =
+        (Array.isArray(json.bullets) && json.bullets) ||
+        (Array.isArray(json.points) && json.points);
+      const paragraph: string | undefined =
+        json.paragraph || json.text || json.summary || json.ai_summary;
+      return (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-white">{title}</h3>
+          {bullets && bullets.length > 0 && (
+            <ul className="list-disc pl-5 space-y-1">
+              {bullets.map((b: string, i: number) => (
+                <li key={i} className="text-slate-100">
+                  {b}
+                </li>
+              ))}
+            </ul>
+          )}
+          {paragraph && (
+            <p className="text-slate-100 whitespace-pre-wrap break-words leading-7">
+              {paragraph}
+            </p>
+          )}
+        </div>
+      );
+    } catch {
+      // Plain text fallback
+      return (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-white">AI Summary</h3>
+          <p className="text-slate-100 whitespace-pre-wrap break-words leading-7">
+            {raw}
+          </p>
+        </div>
+      );
     }
   }
 
@@ -654,6 +941,17 @@ export default function DashboardPage() {
                         ) : (
                           "View Recordings"
                         )}
+                      </button>
+                      
+                      <button
+                        onClick={() => toggleInsights(record.meeting.id)}
+                        className="flex items-center gap-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                        disabled={loadingInsights.has(record.meeting.id)}
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" />
+                        </svg>
+                        {loadingInsights.has(record.meeting.id) ? "Loading..." : "Transcript & Summary"}
                       </button>
                     </div>
                   </div>
@@ -1063,6 +1361,117 @@ export default function DashboardPage() {
                   {recordings && recordings.length > 0 
                     ? `${recordings.length} recording${recordings.length === 1 ? '' : 's'}`
                     : 'No recordings'}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Transcript & Summary Modal */}
+      {Array.from(expandedInsightsMeetings).map((meetingId) => {
+        const items = meetingInsights.get(meetingId);
+        const meeting = meetings.find(r => r.meeting.id === meetingId);
+        return (
+          <div key={meetingId}>
+            <div
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              onClick={() => toggleInsights(meetingId)}
+            />
+            <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700 max-h-[85vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Transcript & Summary</h2>
+                  {meeting && (
+                    <p className="text-sm text-slate-400 mt-1">
+                      {meeting.meeting.title}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => toggleInsights(meetingId)}
+                  className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+                  title="Close"
+                >
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                {!items || items.length === 0 ? (
+                  <div className="flex h-full items-center justify-center">
+                    <p className="text-center text-slate-400">No transcripts or summaries available.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {items.map((it: any) => {
+                      const startedAt = it.startedAt ? new Date(it.startedAt) : null;
+                      const content = insightContentByRecording.get(it.recordingId);
+                      const hasAny = it.hasTranscript || it.hasSummary;
+                      return (
+                        <div key={it.recordingId} className="rounded-lg border border-slate-700 bg-slate-900/50 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-white truncate">
+                                  Recording {it.recordingId.slice(0, 8)}...
+                                </span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-semibold text-white ${hasAny ? 'bg-green-600' : 'bg-slate-600'}`}>
+                                  {hasAny ? 'Available' : 'Unavailable'}
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-400 mt-1">
+                                {startedAt ? `${startedAt.toLocaleDateString()} ${startedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => openInsight(it.recordingId)}
+                                className="rounded-md px-3 py-2 text-sm font-semibold text-white bg-slate-700 hover:bg-slate-600 disabled:opacity-50"
+                                disabled={!hasAny || content?.loading}
+                              >
+                                {content?.loading ? 'Opening...' : 'Open'}
+                              </button>
+                            </div>
+                          </div>
+                          {content && !content.loading && (content.transcriptText || content.summaryText || content.error) && (
+                            <div className="mt-3 rounded-md border border-slate-700 bg-slate-900 p-4 max-h-[50vh] overflow-y-auto space-y-6">
+                              {content.error ? (
+                                <p className="text-sm text-rose-300">{content.error}</p>
+                              ) : (
+                                <>
+                                  {content.transcriptText ? (
+                                    <div className="space-y-3">
+                                      <h3 className="text-sm font-semibold text-white">Transcript</h3>
+                                      {renderTranscriptPretty(content.transcriptText)}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-slate-300">Transcript not available.</p>
+                                  )}
+                                  {content.summaryText ? (
+                                    <div className="pt-2 border-t border-slate-700">
+                                      {renderSummaryPretty(content.summaryText)}
+                                    </div>
+                                  ) : (
+                                    <div className="pt-2 border-t border-slate-700">
+                                      <h3 className="text-sm font-semibold text-white">AI Summary</h3>
+                                      <p className="text-slate-300 text-sm">No summary available.</p>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-slate-700 px-6 py-3">
+                <div className="text-xs text-slate-400 text-center">
+                  {items && items.length > 0 ? `${items.length} item${items.length === 1 ? '' : 's'}` : 'No items'}
                 </div>
               </div>
             </div>
