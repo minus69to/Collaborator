@@ -16,13 +16,13 @@ export default function Home() {
         <div className="mt-6 flex items-center justify-center gap-3">
           <a
             href="/signup"
-            className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-400 shadow-sm shadow-sky-900/30 hover:ring-2 hover:ring-sky-400/40 hover:scale-[1.02]"
+            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-sm shadow-sky-900/40 transition-all duration-150 ease-out hover:from-sky-400 hover:to-indigo-400 hover:shadow-md hover:ring-2 hover:ring-sky-400/40 hover:scale-[1.03] active:scale-95 active:translate-y-[1px]"
           >
             Get started
           </a>
           <a
             href="/login"
-            className="rounded-lg border border-slate-700/60 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-slate-800 hover:ring-2 hover:ring-slate-600/40 hover:scale-[1.02]"
+            className="inline-flex items-center justify-center rounded-full border border-slate-700/70 px-4 py-2 text-sm font-semibold text-slate-100 transition-all duration-150 ease-out hover:bg-slate-950 hover:border-slate-500 hover:shadow-md hover:ring-2 hover:ring-slate-700/50 hover:scale-[1.03] active:scale-95 active:translate-y-[1px]"
           >
             Sign in
           </a>
@@ -75,7 +75,9 @@ export default function Home() {
                 </svg>
               </div>
               <div className="flex flex-1 flex-col justify-start">
-                <h3 className="text-base font-semibold text-white leading-tight">Transcripts & AI Summaries</h3>
+                <h3 className="text-base font-semibold leading-tight bg-gradient-to-r from-emerald-300 to-teal-200 bg-clip-text text-transparent">
+                  Transcripts &amp; AI Summaries
+                </h3>
                 <p className="mt-2 text-sm text-slate-300 leading-relaxed">
                   Read transcripts and concise AI summaries in a clean modal — copy or review later.
                 </p>
