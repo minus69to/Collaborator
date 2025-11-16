@@ -377,7 +377,7 @@ export default function MeetingsPage() {
           {meetings.map((meeting) => (
             <article
               key={meeting.id}
-              className="rounded-lg border border-slate-800 bg-slate-900/70 p-4 shadow shadow-slate-950/40 transition-transform duration-200 hover:-translate-y-1 hover:border-sky-500/40 hover:shadow-xl hover:shadow-sky-900/50"
+              className="rounded-2xl border border-slate-700/80 bg-gradient-to-b from-slate-900/95 via-slate-950/95 to-slate-950 p-4 shadow-lg shadow-slate-950/50 transition-transform duration-200 hover:-translate-y-1 hover:border-sky-500/50 hover:shadow-xl hover:shadow-sky-900/60"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
