@@ -1862,20 +1862,28 @@ function MeetingRoom() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
-        <p>Loading meeting...</p>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 text-slate-100">
+        {/* Soft gradient backdrop */}
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.07),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(129,140,248,0.09),_transparent_55%)]" />
+        <p className="rounded-xl border border-slate-800/80 bg-slate-900/80 px-5 py-3 text-sm text-slate-200 shadow-lg shadow-slate-950/60 backdrop-blur">
+          Loading meeting...
+        </p>
       </div>
     );
   }
 
   if (error || !meeting) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
-        <div className="text-center">
-          <p className="text-rose-300">{error || "Meeting not found"}</p>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 text-slate-100">
+        {/* Soft gradient backdrop */}
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(248,113,113,0.06),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(56,189,248,0.06),_transparent_55%)]" />
+        <div className="rounded-2xl border border-rose-500/30 bg-slate-900/90 px-8 py-6 text-center shadow-2xl shadow-slate-950/70 backdrop-blur">
+          <p className="text-sm font-medium text-rose-200">
+            {error || "Meeting not found"}
+          </p>
           <button
             onClick={() => router.push("/meetings")}
-            className="mt-4 rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-white"
+            className="mt-4 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-sky-900/40 transition-all hover:from-sky-400 hover:to-indigo-400 hover:shadow-md hover:scale-[1.02] active:scale-95"
           >
             Back to Meetings
           </button>
@@ -1920,8 +1928,9 @@ function MeetingRoom() {
     // Show join form
     return (
       <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 px-6 py-16 text-slate-100">
-        {/* Decorative glow */}
-        <div className="pointer-events-none absolute left-1/2 top-10 -z-10 h-64 w-64 -translate-x-1/2 rounded-full bg-gradient-to-tr from-sky-500/20 via-indigo-500/15 to-emerald-400/15 blur-3xl" />
+        {/* Decorative glows */}
+        <div className="pointer-events-none absolute left-1/4 top-6 -z-10 h-64 w-64 -translate-x-1/2 rounded-full bg-gradient-to-tr from-sky-500/16 via-indigo-500/12 to-emerald-400/10 blur-3xl" />
+        <div className="pointer-events-none absolute right-1/4 bottom-0 -z-10 h-72 w-72 translate-x-1/3 translate-y-1/3 rounded-full bg-gradient-to-tr from-violet-500/10 via-sky-500/8 to-emerald-400/8 blur-3xl" />
 
         <div className="relative w-full max-w-md space-y-6 rounded-2xl border border-slate-700/80 bg-slate-900/95 p-8 shadow-xl shadow-slate-950/70 backdrop-blur-md transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-2xl hover:border-sky-500/60">
           {/* Close button */}
@@ -1940,7 +1949,7 @@ function MeetingRoom() {
             </svg>
           </button>
 
-          <div className="text-center space-y-2">
+          <div className="space-y-2 text-center">
             <h1 className="text-2xl font-semibold tracking-tight text-white">{meeting.title}</h1>
             {meeting.description && (
               <p className="text-sm text-slate-300">{meeting.description}</p>
@@ -1986,22 +1995,36 @@ function MeetingRoom() {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100">
-      <header className="flex-shrink-0 border-b border-slate-800 bg-slate-900/70 p-4">
-        <div className="flex items-center justify-between">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-100">
+      {/* Subtle background gradients */}
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.09),_transparent_60%),radial-gradient(circle_at_bottom,_rgba(129,140,248,0.1),_transparent_60%)]" />
+
+      <header className="flex-shrink-0 border-b border-slate-800/80 bg-slate-900/85 px-4 py-3 shadow-lg shadow-slate-950/60 backdrop-blur">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold">{meeting.title}</h1>
+            <div className="flex flex-col">
+              <h1 className="text-lg font-semibold text-white">
+                {meeting.title}
+              </h1>
+              {meeting.description && (
+                <p className="line-clamp-1 text-xs text-slate-400">
+                  {meeting.description}
+                </p>
+              )}
+            </div>
             
             {/* Recording Status Indicator - visible to all */}
             {isConnected && isRecording && (
-              <div className="flex h-9 items-center gap-2 rounded-lg bg-red-600 border border-red-500/50 px-3.5 text-sm font-medium text-white">
+              <div className="flex h-9 items-center gap-2 rounded-full border border-red-500/50 bg-gradient-to-r from-red-600 to-rose-600 px-3.5 text-xs font-semibold text-white shadow-sm shadow-red-900/60">
                 <div className="relative flex items-center justify-center">
-                  <div className="absolute h-2.5 w-2.5 rounded-full bg-white animate-ping opacity-75" />
+                  <div className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-white/80 opacity-75" />
                   <div className="relative h-2 w-2 rounded-full bg-white" />
                 </div>
-                <span className="whitespace-nowrap">Recording</span>
+                <span className="whitespace-nowrap tracking-tight">
+                  Recording
+                </span>
                 {activeRecording?.startedByName && (
-                  <span className="text-xs text-red-100 bg-red-700/40 px-2 py-0.5 rounded whitespace-nowrap">
+                  <span className="whitespace-nowrap rounded-full bg-red-700/60 px-2 py-0.5 text-[10px] text-red-100">
                     by {activeRecording.startedByName}
                   </span>
                 )}
@@ -2034,10 +2057,10 @@ function MeetingRoom() {
                     }
                   }
                 }}
-                className={`flex h-9 items-center gap-2 rounded-lg px-3.5 text-sm font-medium transition active:scale-95 ${
+                className={`flex h-9 items-center gap-2 rounded-full px-3.5 text-xs font-medium transition-all active:scale-95 ${
                   raisedHands.get(localPeer.id) 
-                    ? "bg-yellow-500 text-black hover:bg-yellow-400 animate-pulse" 
-                    : "bg-slate-700 text-white hover:bg-slate-600"
+                    ? "bg-yellow-500 text-black hover:bg-yellow-400 shadow-sm shadow-yellow-700/40 animate-pulse" 
+                    : "bg-slate-700 text-white hover:bg-slate-600 shadow-sm shadow-slate-950/60"
                 }`}
                 title={raisedHands.get(localPeer.id) ? "Lower Hand" : "Raise Hand"}
               >
@@ -2049,15 +2072,15 @@ function MeetingRoom() {
             )}
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Screen Share Button - Clear icon */}
             {isConnected && localPeer && (
               <button
                 onClick={isScreenSharing ? handleStopScreenShare : handleStartScreenShare}
-                className={`flex h-9 w-9 items-center justify-center rounded-lg text-white transition hover:opacity-80 active:scale-95 ${
+                className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/60 text-white shadow-sm shadow-slate-950/60 transition-all hover:border-sky-500/70 hover:bg-slate-800 active:scale-95 ${
                   isScreenSharing 
-                    ? "bg-red-600 hover:bg-red-500" 
-                    : "bg-slate-700 hover:bg-slate-600"
+                    ? "bg-red-600 hover:bg-red-500 border-red-500/70 shadow-red-900/70" 
+                    : "bg-slate-800/80"
                 }`}
                 title={isScreenSharing ? "Stop Sharing Screen" : "Share Screen"}
               >
@@ -2085,14 +2108,14 @@ function MeetingRoom() {
                 <button
                   onClick={isRecording ? handleStopRecording : handleStartRecording}
                   disabled={(isRecording && (isStoppingRecording || !canRecord)) || (!isRecording && (isStartingRecording || !canRecord))}
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg text-white transition-all duration-200 active:scale-95 ${
+                  className={`flex h-9 w-9 items-center justify-center rounded-full border border-red-600/70 text-white shadow-sm shadow-red-900/70 transition-all duration-200 hover:bg-red-600/90 active:scale-95 ${
                     isRecording
                       ? isStoppingRecording
-                        ? "bg-slate-600/50 cursor-not-allowed opacity-60"
-                        : "bg-red-600 hover:bg-red-500"
+                        ? "bg-slate-900/60 cursor-not-allowed opacity-60"
+                        : "bg-red-600/90"
                       : isStartingRecording
-                        ? "bg-slate-600/50 cursor-not-allowed opacity-60"
-                        : "bg-red-600 hover:bg-red-500"
+                        ? "bg-slate-900/60 cursor-not-allowed opacity-60"
+                        : "bg-red-600/90"
                   }`}
                   title={isRecording ? "Stop Recording" : "Start Recording"}
                 >
@@ -2114,10 +2137,10 @@ function MeetingRoom() {
                   <button
                     onClick={handleTogglePermission}
                     disabled={isTogglingPermission}
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200 active:scale-95 ${
+                    className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs transition-all duration-200 active:scale-95 ${
                       allowParticipantsToRecord
-                        ? "bg-emerald-600 text-white hover:bg-emerald-500"
-                        : "bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white border border-slate-600/50"
+                        ? "border-emerald-500/70 bg-emerald-600/90 text-white shadow-sm shadow-emerald-900/60 hover:bg-emerald-500"
+                        : "border-slate-600/60 bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
                     } ${isTogglingPermission ? "opacity-50 cursor-not-allowed" : ""}`}
                     title={allowParticipantsToRecord ? "Only Host Can Record (Click to Restrict)" : "All Participants Can Record (Click to Allow)"}
                   >
@@ -2140,7 +2163,7 @@ function MeetingRoom() {
             {isHost && pendingRequests.length > 0 && (
               <button
                 onClick={() => setShowHostPanel(!showHostPanel)}
-                className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-yellow-500 text-black transition hover:bg-yellow-400 active:scale-95"
+                className="relative flex h-9 w-9 items-center justify-center rounded-full border border-yellow-400/70 bg-yellow-500 text-black shadow-sm shadow-yellow-700/60 transition hover:bg-yellow-400 active:scale-95"
                 title={`${pendingRequests.length} Pending Request${pendingRequests.length > 1 ? 's' : ''}`}
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -2156,7 +2179,7 @@ function MeetingRoom() {
             {/* Files Button - Icon only */}
             <button
               onClick={() => setShowFiles(true)}
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700 text-white transition hover:bg-slate-600 active:scale-95"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/70 bg-slate-800/90 text-white shadow-sm shadow-slate-950/60 transition hover:border-sky-500/70 hover:bg-slate-800 active:scale-95"
               title={`Files${files.length > 0 ? ` (${files.length})` : ''}`}
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -2172,7 +2195,7 @@ function MeetingRoom() {
             {/* Chat Button - Icon only */}
             <button
               onClick={() => setShowChat(true)}
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700 text-white transition hover:bg-slate-600 active:scale-95"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/70 bg-slate-800/90 text-white shadow-sm shadow-slate-950/60 transition hover:border-sky-500/70 hover:bg-slate-800 active:scale-95"
               title="Chat"
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -2209,7 +2232,7 @@ function MeetingRoom() {
             {/* Participants List Button - Icon only */}
             <button
               onClick={() => setShowParticipantsList(true)}
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-slate-700 text-white transition hover:bg-slate-600 active:scale-95"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/70 bg-slate-800/90 text-white shadow-sm shadow-slate-950/60 transition hover:border-sky-500/70 hover:bg-slate-800 active:scale-95"
               title={`Participants (${activeParticipantNames.size > 0 ? activeParticipantNames.size : peers.length > 0 ? peers.length : 0})`}
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -2225,7 +2248,7 @@ function MeetingRoom() {
             {/* Leave Button - Icon only */}
             <button
               onClick={handleLeave}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-600 text-white transition hover:bg-rose-500 active:scale-95"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-rose-500/80 bg-rose-600/95 text-white shadow-sm shadow-rose-900/70 transition hover:bg-rose-500 active:scale-95"
               title="Leave Meeting"
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -2235,9 +2258,11 @@ function MeetingRoom() {
           </div>
         </div>
         {isHost && showHostPanel && (
-          <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800 p-4">
+          <div className="mt-4 rounded-xl border border-slate-700/80 bg-slate-900/95 p-4 shadow-lg shadow-slate-950/70 backdrop-blur">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-white">Pending Join Requests</h2>
+              <h2 className="text-sm font-semibold text-white">
+                Pending Join Requests
+              </h2>
               <button
                 onClick={() => setShowHostPanel(false)}
                 className="text-xs text-slate-400 hover:text-slate-200"
@@ -2252,10 +2277,12 @@ function MeetingRoom() {
                 {pendingRequests.map((request) => (
                   <div
                     key={request.id}
-                    className="flex items-center justify-between rounded-md border border-slate-700 bg-slate-900 p-3"
+                    className="flex items-center justify-between rounded-lg border border-slate-700/80 bg-slate-900/90 p-3 shadow-sm shadow-slate-950/60"
                   >
                     <div>
-                      <p className="text-sm font-medium text-white">{request.display_name}</p>
+                      <p className="text-sm font-medium text-white">
+                        {request.display_name}
+                      </p>
                       <p className="text-xs text-slate-400">
                         Requested {new Date(request.requested_at).toLocaleTimeString()}
                       </p>
@@ -2263,13 +2290,13 @@ function MeetingRoom() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleApproveRequest(request.id, true)}
-                        className="rounded-md bg-green-500 px-3 py-1 text-xs font-semibold text-white transition hover:bg-green-400"
+                        className="rounded-full bg-emerald-500 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-400"
                       >
                         Approve
                       </button>
                       <button
                         onClick={() => handleApproveRequest(request.id, false)}
-                        className="rounded-md bg-red-500 px-3 py-1 text-xs font-semibold text-white transition hover:bg-red-400"
+                        className="rounded-full bg-rose-500 px-3 py-1 text-[11px] font-semibold text-white transition hover:bg-rose-400"
                       >
                         Deny
                       </button>
@@ -2281,8 +2308,8 @@ function MeetingRoom() {
           </div>
         )}
       </header>
-      <main className="flex-1 p-6 overflow-hidden">
-        <div className="mx-auto h-full max-w-7xl flex flex-col">
+      <main className="flex-1 overflow-hidden px-4 py-4">
+        <div className="mx-auto flex h-full max-w-7xl flex-col rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 shadow-xl shadow-slate-950/70 backdrop-blur">
           {/* Video Grid */}
           {(() => {
             // Filter and process peers first
@@ -2602,9 +2629,11 @@ function MeetingRoom() {
             if (filteredPeers.length === 0) {
               return (
                 <div className="flex h-full items-center justify-center">
-                  <div className="text-center">
-                    <div className="mb-4 text-6xl">👥</div>
-                    <p className="text-slate-400">Waiting for participants...</p>
+                  <div className="rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/80 px-10 py-8 text-center shadow-inner shadow-slate-950/60">
+                    <div className="mb-3 text-5xl">👥</div>
+                    <p className="text-sm text-slate-300">
+                      Waiting for participants to join the meeting...
+                    </p>
                   </div>
                 </div>
               );
@@ -2656,17 +2685,24 @@ function MeetingRoom() {
               });
               
               return (
-                <div className="flex h-full flex-row gap-2">
+                <div className="flex h-full flex-row gap-3">
                   {/* Maximized tile - takes 75% of width */}
-                  <div className="flex-1 min-w-0" style={{ flexBasis: '75%' }}>
+                  <div className="min-w-0 flex-1" style={{ flexBasis: "75%" }}>
                     {renderVideoTile(maximizedPeer, true, isMaximizedScreenShare)}
                   </div>
                   
                   {/* Other tiles - small tiles in a vertical column */}
                   {allOtherTiles.length > 0 && (
-                    <div className="flex flex-col gap-2 overflow-y-auto" style={{ flexBasis: '25%', width: '25%' }}>
+                    <div
+                      className="flex flex-col gap-2 overflow-y-auto"
+                      style={{ flexBasis: "25%", width: "25%" }}
+                    >
                       {allOtherTiles.map(({ peer, isScreenShare, uniqueKey }) => (
-                        <div key={uniqueKey} className="flex-shrink-0" style={{ aspectRatio: '16/9' }}>
+                        <div
+                          key={uniqueKey}
+                          className="flex-shrink-0"
+                          style={{ aspectRatio: "16/9" }}
+                        >
                           {renderVideoTile(peer, false, isScreenShare)}
                         </div>
                       ))}
@@ -2713,7 +2749,10 @@ function MeetingRoom() {
             }[gridCols] || 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
             
             return (
-              <div className={`grid h-full gap-2 ${gridColsClass} auto-rows-fr`} style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
+              <div
+                className={`grid h-full gap-3 ${gridColsClass} auto-rows-fr`}
+                style={{ gridAutoRows: "minmax(0, 1fr)" }}
+              >
                 {allTiles.map(({ peer, isScreenShare, uniqueKey }) => (
                   <div key={uniqueKey} className="h-full w-full">
                     {renderVideoTile(peer, false, isScreenShare)}
@@ -2730,18 +2769,18 @@ function MeetingRoom() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowParticipantsList(false)}
           />
           
           {/* Modal */}
-          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 transform rounded-lg bg-slate-800 shadow-2xl border border-slate-700">
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 transform rounded-2xl border border-slate-700/80 bg-slate-900/95 shadow-2xl shadow-slate-950/80 backdrop-blur">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
-              <h2 className="text-xl font-semibold text-white">Participants</h2>
+              <h2 className="text-lg font-semibold text-white">Participants</h2>
               <button
                 onClick={() => setShowParticipantsList(false)}
-                className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
                 title="Close"
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -2778,7 +2817,7 @@ function MeetingRoom() {
                   return (
                     <div
                       key={participant.id}
-                      className="flex items-start gap-3 rounded-lg border border-slate-700 bg-slate-900/50 p-4 transition hover:bg-slate-900"
+                      className="flex items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900/70 p-4 shadow-sm shadow-slate-950/60 transition hover:bg-slate-900"
                     >
                       {/* Avatar */}
                       <div className={`${avatarColor} flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-base font-semibold text-white`}>
@@ -2870,18 +2909,18 @@ function MeetingRoom() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowChat(false)}
           />
           
           {/* Modal */}
-          <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-slate-800 shadow-2xl border-l border-slate-700">
+          <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-slate-700/80 bg-slate-900/95 shadow-2xl shadow-slate-950/80 backdrop-blur">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
-              <h2 className="text-xl font-semibold text-white">Chat</h2>
+              <h2 className="text-lg font-semibold text-white">Chat</h2>
               <button
                 onClick={() => setShowChat(false)}
-                className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
                 title="Close"
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -2891,10 +2930,12 @@ function MeetingRoom() {
             </div>
             
             {/* Messages List */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {chatMessages.length === 0 ? (
                 <div className="flex h-full items-center justify-center">
-                  <p className="text-center text-slate-400">No messages yet. Start the conversation!</p>
+                  <p className="rounded-lg border border-dashed border-slate-700/80 bg-slate-900/80 px-4 py-3 text-center text-sm text-slate-300">
+                    No messages yet. Start the conversation!
+                  </p>
                 </div>
               ) : (
                 chatMessages.map((msg: any) => {
@@ -2907,27 +2948,32 @@ function MeetingRoom() {
                   return (
                     <div
                       key={msg.id}
-                      className={`flex gap-3 ${isLocalMessage ? 'flex-row-reverse' : ''}`}
+                      className={`flex items-start gap-3 ${isLocalMessage ? "flex-row-reverse" : ""}`}
                     >
                       {/* Avatar */}
-                      <div className={`${avatarColor} flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white`}>
+                      <div
+                        className={`${avatarColor} flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white shadow-md shadow-slate-950/60`}
+                      >
                         {initials}
                       </div>
                       
                       {/* Message Content */}
-                      <div className={`flex flex-col max-w-[75%] ${isLocalMessage ? 'items-end' : 'items-start'}`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold text-white">
-                            {isLocalMessage ? 'You' : msg.display_name}
+                      <div
+                        className={`flex max-w-[75%] ${isLocalMessage ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`rounded-2xl px-3 py-2 ${
+                            isLocalMessage
+                              ? "bg-blue-600 text-white"
+                              : "bg-slate-800 text-slate-100"
+                          } shadow-sm shadow-slate-950/60`}
+                        >
+                          <span className="mb-0.5 block text-[11px] text-slate-200/80">
+                            {isLocalMessage ? "You" : msg.display_name} • {timeString}
                           </span>
-                          <span className="text-xs text-slate-400">{timeString}</span>
-                        </div>
-                        <div className={`rounded-lg px-3 py-2 ${
-                          isLocalMessage 
-                            ? 'bg-blue-600 text-white' 
-                            : 'bg-slate-700 text-slate-100'
-                        }`}>
-                          <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                          <p className="text-sm whitespace-pre-wrap break-words">
+                            {msg.message}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -2939,20 +2985,20 @@ function MeetingRoom() {
             </div>
             
             {/* Message Input */}
-            <div className="border-t border-slate-700 p-4">
+            <div className="border-t border-slate-700/80 p-4">
               <form onSubmit={handleSendMessage} className="flex gap-2">
                 <input
                   type="text"
                   value={chatMessageInput}
                   onChange={(e) => setChatMessageInput(e.target.value)}
                   placeholder="Type a message..."
-                  className="flex-1 rounded-md border border-slate-600 bg-slate-900 px-4 py-2 text-sm text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="flex-1 rounded-full border border-slate-700 bg-slate-900/90 px-4 py-2 text-sm text-white placeholder-slate-500 shadow-inner shadow-slate-950/60 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   disabled={isSendingMessage || !isConnected}
                 />
                 <button
                   type="submit"
                   disabled={!chatMessageInput.trim() || isSendingMessage || !isConnected}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed"
+                  className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-sky-900/40 transition hover:from-sky-400 hover:to-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:from-slate-700 disabled:to-slate-700"
                 >
                   {isSendingMessage ? (
                     <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -2976,18 +3022,18 @@ function MeetingRoom() {
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowFiles(false)}
           />
           
           {/* Modal */}
-          <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col bg-slate-800 shadow-2xl border-l border-slate-700">
+          <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-slate-700/80 bg-slate-900/95 shadow-2xl shadow-slate-950/80 backdrop-blur">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
-              <h2 className="text-xl font-semibold text-white">Files</h2>
+              <h2 className="text-lg font-semibold text-white">Files</h2>
               <button
                 onClick={() => setShowFiles(false)}
-                className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-white"
+                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-800 hover:text-white"
                 title="Close"
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -2997,7 +3043,7 @@ function MeetingRoom() {
             </div>
             
             {/* Upload Area */}
-            <div className="border-b border-slate-700 px-4 py-4">
+            <div className="border-b border-slate-700/80 px-4 py-4">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -3053,15 +3099,19 @@ function MeetingRoom() {
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading || !isConnected}
-                  className={`w-full rounded-md border-2 border-dashed px-4 py-6 text-sm font-medium text-slate-300 transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`w-full rounded-xl border-2 border-dashed px-4 py-6 text-sm font-medium text-slate-300 transition disabled:cursor-not-allowed disabled:opacity-50 ${
                     isDragging
-                      ? 'border-blue-500 bg-blue-900/20'
-                      : 'border-slate-600 bg-slate-900/50 hover:border-blue-500 hover:bg-slate-900'
+                      ? "border-sky-500 bg-sky-900/20"
+                      : "border-slate-700 bg-slate-900/60 hover:border-sky-500 hover:bg-slate-900"
                   }`}
                 >
                   {uploading ? (
                     <div className="flex flex-col items-center gap-2">
-                      <svg className="h-6 w-6 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+                      <svg
+                        className="h-6 w-6 animate-spin text-sky-500"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
@@ -3069,7 +3119,12 @@ function MeetingRoom() {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-2">
-                      <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg
+                        className="h-6 w-6 text-slate-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                       </svg>
                       <span>Click to upload or drag and drop</span>
@@ -3079,9 +3134,9 @@ function MeetingRoom() {
                 </button>
               </div>
               {uploading && uploadProgress > 0 && (
-                <div className="mt-2 w-full rounded-full bg-slate-700">
+                <div className="mt-2 w-full rounded-full bg-slate-800/90">
                   <div
-                    className="h-1.5 rounded-full bg-blue-500 transition-all duration-300"
+                    className="h-1.5 rounded-full bg-sky-500 transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                   />
                 </div>
@@ -3092,7 +3147,9 @@ function MeetingRoom() {
             <div className="flex-1 overflow-y-auto px-4 py-4">
               {files.length === 0 ? (
                 <div className="flex h-full items-center justify-center">
-                  <p className="text-center text-slate-400">No files uploaded yet.</p>
+                  <p className="rounded-lg border border-dashed border-slate-700/80 bg-slate-900/80 px-4 py-3 text-center text-sm text-slate-300">
+                    No files uploaded yet.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -3120,7 +3177,7 @@ function MeetingRoom() {
                     return (
                       <div
                         key={file.id}
-                        className="flex items-start gap-3 rounded-lg border border-slate-700 bg-slate-900/50 p-3 transition hover:bg-slate-900"
+                        className="flex items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900/70 p-3 shadow-sm shadow-slate-950/60 transition hover:bg-slate-900"
                       >
                         {/* File Icon */}
                         <div className="flex-shrink-0 text-2xl">
@@ -3128,15 +3185,18 @@ function MeetingRoom() {
                         </div>
                         
                         {/* File Info */}
-                        <div className="flex-1 min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-white truncate" title={file.file_name}>
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className="truncate text-sm font-semibold text-white"
+                                title={file.file_name}
+                              >
                                 {file.file_name}
                               </p>
-                              <div className="flex items-center gap-2 mt-1">
+                              <div className="mt-1 flex items-center gap-2">
                                 <span className="text-xs text-slate-400">
-                                  {isLocalFile ? 'You' : file.display_name}
+                                  {isLocalFile ? "You" : file.display_name}
                                 </span>
                                 <span className="text-xs text-slate-500">•</span>
                                 <span className="text-xs text-slate-400">
@@ -3155,7 +3215,7 @@ function MeetingRoom() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleFileDownload(file.id, file.file_name)}
-                            className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-blue-400"
+                            className="rounded-full p-2 text-slate-400 transition hover:bg-slate-800 hover:text-sky-400"
                             title="Download"
                           >
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3165,7 +3225,7 @@ function MeetingRoom() {
                           {isLocalFile && (
                             <button
                               onClick={() => handleFileDelete(file.id)}
-                              className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-rose-400"
+                              className="rounded-full p-2 text-slate-400 transition hover:bg-slate-800 hover:text-rose-400"
                               title="Delete"
                             >
                               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3182,8 +3242,8 @@ function MeetingRoom() {
             </div>
             
             {/* Footer with file count */}
-            <div className="border-t border-slate-700 px-6 py-3">
-              <p className="text-xs text-slate-400 text-center">
+            <div className="border-t border-slate-700/80 px-6 py-3">
+              <p className="text-center text-xs text-slate-400">
                 {files.length > 0 
                   ? `${files.length} file${files.length === 1 ? '' : 's'}`
                   : 'No files'}
@@ -3194,15 +3254,15 @@ function MeetingRoom() {
       )}
       
       {/* Footer */}
-      <footer className="border-t border-slate-800 bg-slate-900/70 p-2">
+      <footer className="border-t border-slate-800/80 bg-slate-900/85 p-2 shadow-inner shadow-slate-950/70 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-2">
           {toggleError && (
-            <div className="rounded-md bg-rose-500/20 px-4 py-2 text-sm text-rose-300">
+            <div className="rounded-full border border-rose-500/40 bg-rose-500/15 px-4 py-1.5 text-xs text-rose-200 shadow-sm shadow-rose-900/60">
               Error: {toggleError}
             </div>
           )}
           {screenShareError && (
-            <div className="rounded-md bg-rose-500/20 px-4 py-2 text-sm text-rose-300">
+            <div className="rounded-full border border-rose-500/40 bg-rose-500/15 px-4 py-1.5 text-xs text-rose-200 shadow-sm shadow-rose-900/60">
               Screen Share Error: {screenShareError}
             </div>
           )}
