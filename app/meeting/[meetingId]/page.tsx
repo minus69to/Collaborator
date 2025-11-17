@@ -564,8 +564,36 @@ function MeetingRoom() {
   const [isStoppingRecording, setIsStoppingRecording] = useState(false);
   const [isTogglingPermission, setIsTogglingPermission] = useState(false);
   
+  // Meeting duration (stopwatch-style)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  
   // Video tile maximization state
   const [maximizedPeerId, setMaximizedPeerId] = useState<string | null>(null);
+
+  // Start/stop meeting timer based on connection state
+  useEffect(() => {
+    if (!isConnected) {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    const startedAt = Date.now();
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isConnected]);
+
+  const formatElapsed = (totalSeconds: number) => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return hours > 0
+      ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+      : `${pad(minutes)}:${pad(seconds)}`;
+  };
   
   // Clear maximized state if the maximized peer leaves
   useEffect(() => {
@@ -2030,6 +2058,28 @@ function MeetingRoom() {
                 )}
               </div>
             )}
+
+            {/* Meeting duration stopwatch */}
+            {isConnected && (
+              <div className="flex h-9 items-center gap-1.5 rounded-full border border-slate-700/70 bg-slate-900/80 px-3.5 text-[11px] font-medium text-slate-100 shadow-sm shadow-slate-950/60">
+                <svg
+                  className="h-3.5 w-3.5 text-sky-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 8v4l2.5 2.5M9 3h6M19 10a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <span className="tabular-nums tracking-tight">
+                  {formatElapsed(elapsedSeconds)}
+                </span>
+              </div>
+            )}
             
             {/* Raise Hand Button - in header beside meeting name */}
             {isConnected && localPeer && (
@@ -2073,25 +2123,40 @@ function MeetingRoom() {
           </div>
           
           <div className="flex items-center gap-1.5">
-            {/* Screen Share Button - Clear icon */}
+            {/* Screen Share Button - distinguishable from recording */}
             {isConnected && localPeer && (
               <button
                 onClick={isScreenSharing ? handleStopScreenShare : handleStartScreenShare}
-                className={`flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/60 text-white shadow-sm shadow-slate-950/60 transition-all hover:border-sky-500/70 hover:bg-slate-800 active:scale-95 ${
-                  isScreenSharing 
-                    ? "bg-red-600 hover:bg-red-500 border-red-500/70 shadow-red-900/70" 
-                    : "bg-slate-800/80"
+                className={`flex h-9 w-9 items-center justify-center rounded-full border text-white shadow-sm shadow-slate-950/60 transition-all active:scale-95 ${
+                  isScreenSharing
+                    ? "border-sky-500/80 bg-sky-600 hover:bg-sky-500 shadow-sky-900/70"
+                    : "border-slate-700/60 bg-slate-800/80 hover:border-sky-500/70 hover:bg-slate-800"
                 }`}
                 title={isScreenSharing ? "Stop Sharing Screen" : "Share Screen"}
               >
                 {isScreenSharing ? (
-                  // Stop screen share - X icon in circle
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  // Active screen share - monitor with diagonal slash
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect x="3" y="4" width="18" height="12" rx="2" ry="2" />
+                    <line x1="9" y1="20" x2="15" y2="20" />
+                    <line x1="12" y1="16" x2="12" y2="20" />
+                    <line x1="5" y1="6" x2="19" y2="14" />
                   </svg>
                 ) : (
                   // Share screen - monitor/screen icon
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    strokeWidth="2"
+                  >
                     <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
                     <line x1="8" y1="21" x2="16" y2="21" />
                     <line x1="12" y1="17" x2="12" y2="21" />
@@ -2308,8 +2373,8 @@ function MeetingRoom() {
           </div>
         )}
       </header>
-      <main className="flex-1 overflow-hidden px-4 py-4">
-        <div className="mx-auto flex h-full max-w-7xl flex-col rounded-2xl border border-slate-800/80 bg-slate-900/70 p-4 shadow-xl shadow-slate-950/70 backdrop-blur">
+      <main className="flex-1 overflow-hidden px-4 py-3">
+        <div className="mx-auto flex h-full max-w-7xl flex-col rounded-2xl border border-slate-800/80 bg-slate-900/70 px-4 py-3 shadow-xl shadow-slate-950/70 backdrop-blur">
           {/* Video Grid */}
           {(() => {
             // Filter and process peers first
@@ -2595,9 +2660,9 @@ function MeetingRoom() {
                 <div
                   key={`${peer.id}-${useScreenShare ? 'screen' : 'video'}`}
                   onClick={() => handleToggleMaximize(peer.id, useScreenShare)}
-                  className={`relative flex items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-lg cursor-pointer transition-all hover:border-sky-500 hover:shadow-xl h-full w-full ${
-                    isMaximized ? 'ring-2 ring-sky-500' : ''
-                  } ${useScreenShare ? 'ring-2 ring-blue-500' : ''}`}
+                  className={`relative flex h-full w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900 shadow-lg transition-all hover:-translate-y-0.5 hover:border-sky-500 hover:shadow-2xl ${
+                    isMaximized ? "ring-2 ring-sky-500" : ""
+                  } ${useScreenShare ? "ring-2 ring-blue-500" : ""}`}
                   title={isMaximized ? "Click to restore normal view" : "Click to maximize"}
                 >
                   <VideoTile 
@@ -2817,7 +2882,7 @@ function MeetingRoom() {
                   return (
                     <div
                       key={participant.id}
-                      className="flex items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900/70 p-4 shadow-sm shadow-slate-950/60 transition hover:bg-slate-900"
+                      className="flex items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900/70 p-4 shadow-sm shadow-slate-950/60 transition hover:-translate-y-0.5 hover:bg-slate-900"
                     >
                       {/* Avatar */}
                       <div className={`${avatarColor} flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-base font-semibold text-white`}>
@@ -3177,7 +3242,7 @@ function MeetingRoom() {
                     return (
                       <div
                         key={file.id}
-                        className="flex items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900/70 p-3 shadow-sm shadow-slate-950/60 transition hover:bg-slate-900"
+                        className="flex items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900/70 p-3 shadow-sm shadow-slate-950/60 transition hover:-translate-y-0.5 hover:bg-slate-900"
                       >
                         {/* File Icon */}
                         <div className="flex-shrink-0 text-2xl">
@@ -3254,7 +3319,7 @@ function MeetingRoom() {
       )}
       
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-900/85 p-2 shadow-inner shadow-slate-950/70 backdrop-blur">
+      <footer className="bg-slate-900/85 p-2 shadow-inner shadow-slate-950/70 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-2">
           {toggleError && (
             <div className="rounded-full border border-rose-500/40 bg-rose-500/15 px-4 py-1.5 text-xs text-rose-200 shadow-sm shadow-rose-900/60">
