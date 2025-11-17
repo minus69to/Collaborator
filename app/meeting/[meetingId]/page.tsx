@@ -2027,7 +2027,7 @@ function MeetingRoom() {
       {/* Subtle background gradients */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.09),_transparent_60%),radial-gradient(circle_at_bottom,_rgba(129,140,248,0.1),_transparent_60%)]" />
 
-      <header className="flex-shrink-0 border-b border-slate-800/80 bg-slate-900/85 px-4 py-3 shadow-lg shadow-slate-950/60 backdrop-blur">
+      <header className="flex-shrink-0 border-b border-slate-800/80 bg-slate-950/85 px-4 py-3 shadow-lg shadow-slate-950/60 backdrop-blur">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex flex-col">
@@ -2374,7 +2374,7 @@ function MeetingRoom() {
         )}
       </header>
       <main className="flex-1 overflow-hidden px-4 py-3">
-        <div className="mx-auto flex h-full max-w-7xl flex-col rounded-2xl border border-slate-800/80 bg-slate-900/70 px-4 py-3 shadow-xl shadow-slate-950/70 backdrop-blur">
+        <div className="mx-auto flex h-full max-w-7xl flex-col rounded-2xl border border-slate-800/80 bg-slate-950/70 px-4 py-3 shadow-xl shadow-slate-950/70 backdrop-blur">
           {/* Video Grid */}
           {(() => {
             // Filter and process peers first
@@ -3319,7 +3319,7 @@ function MeetingRoom() {
       )}
       
       {/* Footer */}
-      <footer className="bg-slate-900/85 p-2 shadow-inner shadow-slate-950/70 backdrop-blur">
+      <footer className="bg-slate-950/85 p-2 shadow-inner shadow-slate-950/70 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-2">
           {toggleError && (
             <div className="rounded-full border border-rose-500/40 bg-rose-500/15 px-4 py-1.5 text-xs text-rose-200 shadow-sm shadow-rose-900/60">
