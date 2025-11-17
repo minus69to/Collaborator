@@ -1,4 +1,29 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useUser } from "@/hooks/useUser";
+
 export default function Home() {
+  const router = useRouter();
+  const { status } = useUser();
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace("/meetings");
+    }
+  }, [status, router]);
+
+  // While checking auth, avoid flashing the landing page
+  if (status === "loading") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 px-6 py-16 text-slate-100">
+        <p className="text-sm text-slate-300">Loading your workspace…</p>
+      </main>
+    );
+  }
+
+  // Unauthenticated users see the landing page
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 px-6 py-16 text-slate-100">
       {/* Hero */}
