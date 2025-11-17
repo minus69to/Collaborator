@@ -116,6 +116,10 @@ export default function DashboardPage() {
   const [meetingInsights, setMeetingInsights] = useState<Map<string, any[]>>(new Map());
   const [loadingInsights, setLoadingInsights] = useState<Set<string>>(new Set());
   const [insightContentByRecording, setInsightContentByRecording] = useState<Map<string, { transcriptText: string | null; summaryText: string | null; loading: boolean; error?: string }>>(new Map());
+  
+  // Delete confirmation state
+  const [meetingToDelete, setMeetingToDelete] = useState<MeetingRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -782,6 +786,28 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleConfirmDelete() {
+    if (!meetingToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/meetings/dashboard-delete?meetingId=${meetingToDelete.meeting.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to delete meeting");
+      }
+      // Remove meeting from local dashboard list
+      setMeetings(prev => prev.filter(m => m.meeting.id !== meetingToDelete.meeting.id));
+      setMeetingToDelete(null);
+    } catch (err) {
+      console.error("Failed to delete meeting from dashboard:", err);
+      alert(err instanceof Error ? err.message : "Failed to delete meeting");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   if (status === "unauthenticated") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
@@ -926,6 +952,26 @@ export default function DashboardPage() {
                           <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V5h2v4z" />
                         </svg>
                         {loadingInsights.has(record.meeting.id) ? "Loading..." : "Transcript & Summary"}
+                      </button>
+                      
+                      {/* Delete from dashboard / delete meeting button (icon-only to align with others) */}
+                      <button
+                        onClick={() => setMeetingToDelete(record)}
+                        className={`inline-flex h-8 w-8 items-center justify-center rounded-full border text-slate-100 shadow-sm shadow-slate-950/40 transition-all duration-150 ease-out hover:scale-105 active:scale-95 ${
+                          isHost
+                            ? "border-rose-600/70 bg-rose-600/70 hover:bg-rose-500"
+                            : "border-slate-700/70 bg-slate-900 hover:bg-slate-800 hover:border-rose-400/70"
+                        }`}
+                        title={isHost ? "Delete meeting for everyone" : "Remove this meeting from your dashboard"}
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 7h12M10 11v6m4-6v6M9 4h6l1 3H8l1-3zm-1 3l1 12a2 2 0 001.994 1.85h4.012A2 2 0 0017 19L18 7"
+                          />
+                        </svg>
                       </button>
                     </div>
                   </div>
@@ -1478,6 +1524,47 @@ export default function DashboardPage() {
           </div>
         );
       })}
+      
+      {/* Delete Confirmation Modal */}
+      {meetingToDelete && (
+        <div>
+          <div
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            onClick={() => (!isDeleting ? setMeetingToDelete(null) : null)}
+          />
+          <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 transform rounded-2xl border border-slate-700/80 bg-slate-950/95 shadow-2xl shadow-slate-950/80 backdrop-blur-md p-6">
+            <h2 className="text-lg font-semibold text-white mb-2">
+              {meetingToDelete.role === "host" ? "Delete meeting for everyone?" : "Remove from your dashboard?"}
+            </h2>
+            <p className="text-sm text-slate-300 mb-4">
+              {meetingToDelete.role === "host"
+                ? "This will permanently delete this meeting and all related chat, files, recordings, and history for all participants. This action cannot be undone."
+                : "This will remove this meeting from your dashboard only. The meeting and its data will remain for the host and others, and you will need host approval again if you want to join in future."}
+            </p>
+            <p className="text-xs text-slate-500 mb-4">
+              Meeting: <span className="font-medium text-slate-200">{meetingToDelete.meeting.title}</span>
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setMeetingToDelete(null)}
+                className="inline-flex items-center justify-center rounded-full border border-slate-700/70 px-4 py-1.5 text-xs font-semibold text-slate-100 shadow-sm shadow-slate-950/40 transition-all hover:bg-slate-900 active:scale-95 disabled:opacity-60"
+              >
+                No, keep it
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="inline-flex items-center justify-center rounded-full border border-rose-600/70 bg-rose-600/90 px-4 py-1.5 text-xs font-semibold text-white shadow-sm shadow-rose-900/60 transition-all hover:bg-rose-500 active:scale-95 disabled:opacity-70"
+              >
+                {isDeleting ? "Deleting..." : "Yes, delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
