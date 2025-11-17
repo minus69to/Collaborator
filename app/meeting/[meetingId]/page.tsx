@@ -172,11 +172,11 @@ function VideoTile({
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
           <div className="flex flex-col items-center justify-center">
             {/* Avatar Circle */}
-            <div className={`${avatarColor} mb-3 flex h-20 w-20 items-center justify-center rounded-full text-2xl font-semibold text-white shadow-lg`}>
+            <div className={`${avatarColor} mb-2 flex h-20 w-20 items-center justify-center rounded-full text-2xl font-semibold text-white shadow-lg`}>
               {initials}
             </div>
             {isLocal && (
-              <p className="mt-1 text-xs text-slate-300">(You)</p>
+              <p className="mt-0.5 text-xs text-slate-300">(You)</p>
             )}
           </div>
         </div>
