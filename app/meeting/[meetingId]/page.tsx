@@ -175,9 +175,8 @@ function VideoTile({
             <div className={`${avatarColor} mb-3 flex h-20 w-20 items-center justify-center rounded-full text-2xl font-semibold text-white shadow-lg`}>
               {initials}
             </div>
-            <p className="text-sm font-medium text-slate-200">{peerName}</p>
             {isLocal && (
-              <p className="mt-1 text-xs text-slate-400">(You)</p>
+              <p className="mt-1 text-xs text-slate-300">(You)</p>
             )}
           </div>
         </div>
