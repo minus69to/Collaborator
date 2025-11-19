@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
           console.log(`[Recording Download] Attempting to get download URL for asset ${assetIdToUse}...`);
           downloadUrl = await getHMSRecordingAssetDownloadUrl(assetIdToUse);
           if (downloadUrl) {
+            console.log(`[Recording Download] Download URL: ${downloadUrl}`);
             console.log(`[Recording Download] ✓ Got download URL from asset API`);
           } else {
             console.log(`[Recording Download] ✗ Could not get download URL from asset API`);
@@ -88,12 +89,15 @@ export async function GET(request: NextRequest) {
         if (!downloadUrl && recording.hms_asset_id) {
           console.log(`[Recording Download] Fallback: Using stored asset ID ${recording.hms_asset_id}...`);
           downloadUrl = await getHMSRecordingAssetDownloadUrl(recording.hms_asset_id);
+          console.log(`[Recording Download] Download URL: ${downloadUrl}`);
+
         }
       }
     } else if (recording.hms_asset_id) {
       // No recording ID but have asset ID - try direct asset lookup
       console.log(`[Recording Download] No hms_recording_id, using stored asset ID ${recording.hms_asset_id}...`);
       downloadUrl = await getHMSRecordingAssetDownloadUrl(recording.hms_asset_id);
+      console.log(`[Recording Download] Download URL: ${downloadUrl}`);
     }
 
     // Fallback to stored URL only if we don't have a download URL from asset API
@@ -105,71 +109,11 @@ export async function GET(request: NextRequest) {
     
     console.log(`[Recording Download] Using video URL: ${videoUrl.substring(0, 100)}...`);
 
-    // Try to fetch the actual video file
-    console.log(`[Recording Download] Attempting to fetch video from: ${videoUrl.substring(0, 100)}...`);
-    
-    try {
-      const videoResponse = await fetch(videoUrl, {
-        method: "GET",
-        headers: {
-          "User-Agent": "Mozilla/5.0",
-          "Accept": "video/mp4,video/*,*/*",
-        },
-        redirect: "follow",
-      });
-
-      if (!videoResponse.ok) {
-        throw new Error(`Failed to fetch video: ${videoResponse.status}`);
-      }
-
-      const contentType = videoResponse.headers.get("content-type") || "";
-      console.log(`[Recording Download] Response Content-Type: ${contentType}`);
-
-      // If it's HTML, it's the preview page, not the video
-      if (contentType.includes("text/html")) {
-        console.log(`[Recording Download] URL returns HTML (preview page), cannot download directly`);
-        throw badRequest("Recording download is not available. The recording may only be available as a preview page.");
-      }
-
-      // Get the file as a buffer
-      const fileBuffer = await videoResponse.arrayBuffer();
-      
-      console.log(`[Recording Download] Fetched ${fileBuffer.byteLength} bytes, Content-Type: ${contentType}`);
-      
-      // Check if we got actual video data (at least 1KB for a valid video file)
-      if (fileBuffer.byteLength < 1000) {
-        console.log(`[Recording Download] Received suspiciously small file: ${fileBuffer.byteLength} bytes`);
-        throw badRequest("Recording file is too small. The recording may still be processing or unavailable.");
-      }
-
-      // Generate a filename
-      const dateStr = new Date(recording.started_at).toISOString().split("T")[0];
-      const timeStr = new Date(recording.started_at).toTimeString().split(" ")[0].replace(/:/g, "-");
-      const fileName = `recording-${recording.display_name}-${dateStr}-${timeStr}.mp4`;
-
-      console.log(`[Recording Download] ✓ Successfully fetched ${fileBuffer.byteLength} bytes, serving as ${fileName}`);
-
-      // Return the file with appropriate headers
-      return new Response(fileBuffer, {
-        status: 200,
-        headers: {
-          "Content-Type": contentType.includes("video") ? contentType : "video/mp4",
-          "Content-Disposition": `attachment; filename="${fileName}"`,
-          "Content-Length": fileBuffer.byteLength.toString(),
-          "Cache-Control": "no-cache",
-        },
-      });
-    } catch (fetchError) {
-      console.error(`[Recording Download] Failed to fetch video directly:`, fetchError);
-      
-      // If it's a badRequest error, re-throw it
-      if (fetchError && typeof fetchError === 'object' && 'status' in fetchError) {
-        throw fetchError;
-      }
-      
-      // Otherwise, throw a generic error
-      throw badRequest(`Failed to download recording: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
-    }
+    // Redirect authenticated clients directly to the signed asset URL.
+    // This ensures they download the exact file that 100ms serves (avoiding the
+    // re-streaming quirks that made some players drop the video track).
+    console.log(`[Recording Download] Redirecting client to signed asset URL`);
+    return Response.redirect(videoUrl, 302);
   } catch (error) {
     return toErrorResponse(error);
   }

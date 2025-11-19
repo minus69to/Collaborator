@@ -25,6 +25,22 @@ The 403 "user does not have required permission" error indicates that your 100ms
    - If recording is still not working, contact 100ms support to enable recording on your account
    - They may need to enable it at the account level
 
+## Configure Meeting URL for Video Recordings
+
+100ms composite recordings require a fully qualified **meeting URL** (their hosted preview UI) so video tiles can render.  
+Set the following environment variables and restart the Next.js server:
+
+```
+HMS_RECORDING_MEETING_URL="https://<your-subdomain>.app.100ms.live/preview"
+HMS_TEMPLATE_ID="<your-template-id>"
+```
+
+- `HMS_RECORDING_MEETING_URL` must include the `https://` protocol and usually ends with `/preview`.
+- `HMS_TEMPLATE_ID` is optional but recommended so the recorder always loads the correct layout.
+- The server automatically adds `skip_preview=true`, `auto_join=true`, and `ui_mode=recorder` query params, so you don't need to include them.
+
+Without these environment variables, 100ms may only produce audio tracks.
+
 ### Testing Recording:
 
 1. Verify room exists: `GET /api/recordings/test?meetingId={meetingId}`

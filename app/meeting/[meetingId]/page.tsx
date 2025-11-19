@@ -337,6 +337,51 @@ function MeetingRoom() {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenShareError, setScreenShareError] = useState<string | null>(null);
   
+  // Suppress non-critical HMS SDK reconnection errors
+  useEffect(() => {
+    const originalError = console.error;
+    const originalWarn = console.warn;
+    
+    // Intercept console.error to filter HMS reconnection errors
+    console.error = (...args: any[]) => {
+      const errorMessage = args.join(' ').toLowerCase();
+      const isHMSReconnectionError = errorMessage.includes('hms-store') && 
+                                     errorMessage.includes('reconnection') &&
+                                     errorMessage.includes('received error from sdk');
+      
+      if (isHMSReconnectionError) {
+        // Suppress non-critical reconnection errors - they're often harmless
+        console.debug('[HMS SDK] Reconnection error (suppressed):', ...args);
+        return;
+      }
+      
+      // Pass through all other errors
+      originalError.apply(console, args);
+    };
+    
+    // Intercept console.warn for HMS reconnection warnings
+    console.warn = (...args: any[]) => {
+      const warnMessage = args.join(' ').toLowerCase();
+      const isHMSReconnectionWarning = warnMessage.includes('hms') && 
+                                        warnMessage.includes('reconnection');
+      
+      if (isHMSReconnectionWarning) {
+        // Suppress non-critical reconnection warnings
+        console.debug('[HMS SDK] Reconnection warning (suppressed):', ...args);
+        return;
+      }
+      
+      // Pass through all other warnings
+      originalWarn.apply(console, args);
+    };
+    
+    return () => {
+      // Restore original console methods on cleanup
+      console.error = originalError;
+      console.warn = originalWarn;
+    };
+  }, []);
+  
   // Debug: Log peers and tracks
   useEffect(() => {
     console.log("Peers updated:", peers.length, "peers");
@@ -448,41 +493,105 @@ function MeetingRoom() {
   // Screen sharing handlers
   const handleStartScreenShare = async () => {
     setScreenShareError(null);
+    
+    // Prevent multiple simultaneous attempts
+    if (isScreenSharing) {
+      return;
+    }
+    
     try {
       console.log("Starting screen share...");
+      
+      // Check if connected to room
+      if (!isConnected) {
+        throw new Error("Not connected to the meeting. Please wait...");
+      }
       
       // Check if screen sharing is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
         throw new Error("Screen sharing is not supported in this browser");
       }
       
-      // Start screen sharing using HMS
-      await hmsActions.setScreenShareEnabled(true);
-      setIsScreenSharing(true);
+      // Start screen sharing using HMS with timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Screen share request timed out")), 10000)
+      );
+      
+      await Promise.race([
+        hmsActions.setScreenShareEnabled(true),
+        timeoutPromise
+      ]);
+      
+      // Don't set state immediately - let the useEffect monitor handle it
       console.log("Screen share started successfully");
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to start screen sharing";
-      console.error("Failed to start screen share:", err);
-      setScreenShareError(errorMsg);
-      setIsScreenSharing(false);
-      // Clear error after 5 seconds
-      setTimeout(() => setScreenShareError(null), 5000);
+      
+      // Filter out non-critical reconnection errors
+      const isReconnectionError = errorMsg.toLowerCase().includes("reconnection") || 
+                                  errorMsg.toLowerCase().includes("reconnect");
+      
+      if (!isReconnectionError) {
+        console.error("Failed to start screen share:", err);
+        setScreenShareError(errorMsg);
+        setIsScreenSharing(false);
+        // Clear error after 5 seconds
+        setTimeout(() => setScreenShareError(null), 5000);
+      } else {
+        // Reconnection errors are often non-critical - just log them
+        console.warn("Screen share reconnection warning (non-critical):", errorMsg);
+      }
     }
   };
 
   const handleStopScreenShare = async () => {
     setScreenShareError(null);
+    
+    // Prevent multiple simultaneous attempts
+    if (!isScreenSharing) {
+      return;
+    }
+    
     try {
       console.log("Stopping screen share...");
-      await hmsActions.setScreenShareEnabled(false);
+      
+      // Check if connected to room
+      if (!isConnected) {
+        // If not connected, just update local state
+        setIsScreenSharing(false);
+        return;
+      }
+      
+      // Stop screen sharing using HMS with timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Stop screen share request timed out")), 10000)
+      );
+      
+      await Promise.race([
+        hmsActions.setScreenShareEnabled(false),
+        timeoutPromise
+      ]);
+      
+      // Update state immediately since we're stopping
       setIsScreenSharing(false);
       console.log("Screen share stopped successfully");
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to stop screen sharing";
-      console.error("Failed to stop screen share:", err);
-      setScreenShareError(errorMsg);
-      // Clear error after 5 seconds
-      setTimeout(() => setScreenShareError(null), 5000);
+      
+      // Filter out non-critical reconnection errors
+      const isReconnectionError = errorMsg.toLowerCase().includes("reconnection") || 
+                                  errorMsg.toLowerCase().includes("reconnect");
+      
+      if (!isReconnectionError) {
+        console.error("Failed to stop screen share:", err);
+        setScreenShareError(errorMsg);
+        // Clear error after 5 seconds
+        setTimeout(() => setScreenShareError(null), 5000);
+      } else {
+        // Reconnection errors are often non-critical - just update state and log
+        console.warn("Screen share stop reconnection warning (non-critical):", errorMsg);
+        setIsScreenSharing(false);
+      }
     }
   };
 

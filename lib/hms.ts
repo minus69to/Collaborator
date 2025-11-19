@@ -3,6 +3,36 @@ import { getServerEnv } from "./validateEnv";
 
 const { HMS_ACCOUNT_ID, HMS_SECRET } = getServerEnv();
 
+function buildRecordingMeetingUrl(roomId: string): string | null {
+  const baseUrl = process.env.HMS_RECORDING_MEETING_URL?.trim();
+  const templateId = process.env.HMS_TEMPLATE_ID?.trim();
+
+  if (!baseUrl) {
+    console.warn(
+      "[Recording] HMS_RECORDING_MEETING_URL not configured. Composite recordings might miss video unless a meeting URL is provided."
+    );
+    return null;
+  }
+
+  try {
+    const normalizedBase = baseUrl.replace(/\/$/, "");
+    const url = new URL(`${normalizedBase}/${roomId}`);
+
+    const params = url.searchParams;
+    if (!params.has("skip_preview")) params.set("skip_preview", "true");
+    if (!params.has("ui_mode")) params.set("ui_mode", "recorder");
+    params.set("auto_join", "true");
+    if (templateId && !params.has("template_id")) {
+      params.set("template_id", templateId);
+    }
+
+    return url.toString();
+  } catch (error) {
+    console.error("[Recording] Invalid HMS_RECORDING_MEETING_URL. Expected a full https URL.", error);
+    return null;
+  }
+}
+
 // Initialize 100ms SDK - constructor takes accessKey and secret as positional arguments
 // Trim values to avoid whitespace issues from env file
 const hms = new SDK(HMS_ACCOUNT_ID.trim(), HMS_SECRET.trim());
@@ -162,7 +192,7 @@ export async function hasActiveRecording(roomId: string): Promise<boolean> {
   try {
     const recordings = await listHMSRecordings(roomId);
     // Check if there's any recording with status 'running' or 'recording' or 'starting'
-    return recordings.some(rec => 
+    return recordings.some((rec: any) => 
       rec.status === 'running' || 
       rec.status === 'recording' || 
       rec.status === 'starting'
@@ -177,6 +207,15 @@ export async function hasActiveRecording(roomId: string): Promise<boolean> {
 /**
  * Start recording for a 100ms room.
  */
+type HMSRecordingStartParams = {
+  resolution?: {
+    width: number;
+    height: number;
+  };
+  audio_only?: boolean;
+  meeting_url?: string;
+};
+
 export async function startHMSRecording(roomId: string) {
   try {
     // Validate roomId is a non-empty string
@@ -191,9 +230,22 @@ export async function startHMSRecording(roomId: string) {
       console.warn(`Warning: Active recording may already exist for room ${roomId}`);
     }
     
-    // Using 100ms SDK to start recording
-    // The recordings.start() method takes roomId as a string parameter
-    const response = await hms.recordings.start(roomId);
+    // Using 100ms SDK to start recording with explicit composite video settings
+    const meetingUrl = buildRecordingMeetingUrl(roomId);
+
+    const startParams: HMSRecordingStartParams = {
+      audio_only: false,
+      resolution: {
+        width: 1920,
+        height: 1080,
+      },
+    };
+
+    if (meetingUrl) {
+      startParams.meeting_url = meetingUrl;
+    }
+
+    const response = await (hms.recordings as any).start(roomId, startParams);
 
     return {
       id: response.id || response.recording_id || response.session_id || response.room_id,
@@ -277,12 +329,125 @@ export async function getHMSRecording(recordingId: string) {
   try {
     // Get recording by ID
     const recording = await hms.recordings.retrieve(recordingId);
+    const recordingAny = recording as any;
     
     // 100ms returns meeting_url (preview URL) and recording_assets array
-    // Find the video asset (type: "room-composite")
-    const videoAsset = recording.recording_assets?.find(
-      (asset: any) => asset.type === "room-composite" && asset.status === "completed"
+    // Find the video asset - prioritize video over audio-only
+    const recordingAssets: any[] = Array.isArray(recordingAny.recording_assets) ? recordingAny.recording_assets : [];
+    
+    console.log(`[getHMSRecording] Found ${recordingAssets.length} assets for recording ${recordingId}:`, 
+      recordingAssets.map((a: any) => ({ 
+        id: a.id, 
+        type: a.type, 
+        status: a.status,
+        path: a.path || a.file_path || a.s3_path || a.gcs_path || a.storage_path || 'N/A',
+        name: a.name || a.file_name || 'N/A',
+        hasUrl: !!(a.download_url || a.url || a.presigned_url)
+      }))
     );
+    
+    // Helper function to check if an asset is likely a final video (not intermediate/audio)
+    const isFinalVideoAsset = (asset: any): boolean => {
+      const path = (asset.path || asset.file_path || asset.s3_path || asset.gcs_path || asset.storage_path || '').toLowerCase();
+      const name = (asset.name || asset.file_name || '').toLowerCase();
+      
+      // Exclude intermediate/beam assets (these are often audio-only or processing files)
+      if (path.includes('/intermediates/') || path.includes('/beam/')) {
+        return false;
+      }
+      
+      // Exclude assets explicitly named as audio
+      if (name.includes('rec-audio') || name.includes('audio-only')) {
+        return false;
+      }
+      
+      // Prefer assets in room-composite folder or with video indicators
+      if (path.includes('/room-composite/') || name.includes('composite') || name.includes('video')) {
+        return true;
+      }
+      
+      // If it's room-composite type and not in intermediates, it's likely final
+      if (asset.type === 'room-composite' && !path.includes('/intermediates/')) {
+        return true;
+      }
+      
+      return false;
+    };
+    
+    // Prioritize video assets: look for final room-composite (video) first
+    let videoAsset: any | null = null;
+    
+    // First try: room-composite with completed status that's a final video (not intermediate)
+    videoAsset = recordingAssets.find((asset: any) => 
+      asset?.type === "room-composite" && 
+      asset?.status === "completed" &&
+      isFinalVideoAsset(asset)
+    ) || null;
+    
+    // Second try: any room-composite that's a final video (even if not completed yet)
+    if (!videoAsset) {
+      videoAsset = recordingAssets.find((asset: any) => 
+        asset?.type === "room-composite" && isFinalVideoAsset(asset)
+      ) || null;
+    }
+    
+    // Third try: room-composite with completed status (even if intermediate, but prefer non-intermediate)
+    if (!videoAsset) {
+      videoAsset = recordingAssets.find((asset: any) => 
+        asset?.type === "room-composite" && asset?.status === "completed"
+      ) || null;
+    }
+    
+    // Fourth try: any room-composite (even if not completed yet)
+    if (!videoAsset) {
+      videoAsset = recordingAssets.find((asset: any) => asset?.type === "room-composite") || null;
+    }
+    
+    // Fifth try: any asset that's not audio-only and is a final video
+    if (!videoAsset) {
+      videoAsset = recordingAssets.find((asset: any) => 
+        asset?.type !== "audio-only" && 
+        asset?.status === "completed" &&
+        isFinalVideoAsset(asset)
+      ) || null;
+    }
+    
+    // Sixth try: any asset that's not audio-only
+    if (!videoAsset) {
+      videoAsset = recordingAssets.find((asset: any) => 
+        asset?.type !== "audio-only" && asset?.status === "completed"
+      ) || null;
+    }
+    
+    // Seventh try: any non-audio asset
+    if (!videoAsset) {
+      videoAsset = recordingAssets.find((asset: any) => asset?.type !== "audio-only") || null;
+    }
+    
+    // Last resort: use the first completed asset
+    if (!videoAsset) {
+      videoAsset = recordingAssets.find((asset: any) => asset?.status === "completed") || null;
+    }
+    
+    // Final fallback: use the first asset
+    if (!videoAsset && recordingAssets.length > 0) {
+      videoAsset = recordingAssets[0];
+    }
+    
+    if (videoAsset) {
+      const assetPath = videoAsset.path || videoAsset.file_path || videoAsset.s3_path || videoAsset.gcs_path || videoAsset.storage_path || 'N/A';
+      const assetName = videoAsset.name || videoAsset.file_name || 'N/A';
+      console.log(`[getHMSRecording] Selected asset:`, {
+        id: videoAsset.id,
+        type: videoAsset.type,
+        status: videoAsset.status,
+        path: assetPath,
+        name: assetName,
+        isFinalVideo: isFinalVideoAsset(videoAsset),
+      });
+    } else {
+      console.log(`[getHMSRecording] No video asset found in ${recordingAssets.length} assets`);
+    }
     
     // Try to get download URL from asset if available
     let downloadUrl: string | null = null;
@@ -299,17 +464,17 @@ export async function getHMSRecording(recordingId: string) {
     
     // Use download URL from asset, or fallback to meeting_url (preview URL)
     const url = downloadUrl ||
-                recording.meeting_url ||
-                recording.url || 
-                recording.recording_url || 
-                recording.recordingUrl ||
-                recording.video_url ||
-                recording.videoUrl ||
+                recordingAny.meeting_url ||
+                recordingAny.url || 
+                recordingAny.recording_url || 
+                recordingAny.recordingUrl ||
+                recordingAny.video_url ||
+                recordingAny.videoUrl ||
                 null;
     
     // Get duration and file size from the video asset if available
-    const duration = videoAsset?.duration || recording.duration || null;
-    const fileSize = videoAsset?.size || recording.file_size || recording.fileSize || null;
+    const duration = videoAsset?.duration || recordingAny.duration || null;
+    const fileSize = videoAsset?.size || recordingAny.file_size || recordingAny.fileSize || null;
     
     // Extract file path from asset (for custom storage)
     // The path might be in different fields depending on storage provider
@@ -322,13 +487,13 @@ export async function getHMSRecording(recordingId: string) {
     
     return {
       id: recording.id,
-      roomId: recording.room_id || recording.roomId,
-      status: recording.status,
+      roomId: recordingAny.room_id || recordingAny.roomId,
+      status: recordingAny.status,
       url: url,
       assetId: videoAsset?.id || null,
       filePath: filePath,
-      startedAt: recording.started_at || recording.start_time || recording.startedAt || recording.startTime || null,
-      stoppedAt: recording.stopped_at || recording.end_time || recording.stoppedAt || recording.endTime || null,
+      startedAt: recordingAny.started_at || recordingAny.start_time || recordingAny.startedAt || recordingAny.startTime || null,
+      stoppedAt: recordingAny.stopped_at || recordingAny.end_time || recordingAny.stoppedAt || recordingAny.endTime || null,
       duration: duration,
       fileSize: fileSize,
     };
@@ -378,6 +543,7 @@ export async function getHMSRecordingAssetDownloadUrl(assetId: string): Promise<
   try {
     const { HMS_ACCOUNT_ID, HMS_SECRET } = getServerEnv();
     const baseUrl = "https://api.100ms.live/v2";
+    const basicAuth = Buffer.from(`${HMS_ACCOUNT_ID.trim()}:${HMS_SECRET.trim()}`).toString("base64");
     
     // 100ms Management API requires Bearer token authentication
     // First, try to get pre-signed URL directly (this is the recommended endpoint)

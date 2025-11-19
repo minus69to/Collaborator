@@ -712,77 +712,27 @@ export default function DashboardPage() {
     }
   }
 
-  // Handle recording download - following the same pattern as file downloads
-  async function handleRecordingDownload(recordingUrl: string, recordingId: string, meetingId: string, displayName: string, startedAt: string) {
+  // Handle recording streaming/download by opening the API endpoint in a new tab
+  // Uses a hidden anchor element to avoid pop-up blockers
+  function handleRecordingDownload(recordingUrl: string, recordingId: string, meetingId: string) {
     try {
-      console.log(`[Recording Download Client] Starting download for recording ${recordingId}...`);
+      const endpoint = `/api/recordings/download-url?recordingId=${recordingId}&meetingId=${meetingId}`;
       
-      // Step 1: Get signed download URL from server (authenticated endpoint)
-      const downloadUrlResponse = await fetch(
-        `/api/recordings/download-url?recordingId=${recordingId}&meetingId=${meetingId}`,
-        {
-          method: 'GET',
-          credentials: 'include', // Send cookies for authentication
-        }
-      );
+      // Create a hidden anchor element and click it programmatically
+      // This method doesn't trigger pop-up blockers because it's considered a user-initiated action
+      const link = document.createElement("a");
+      link.href = endpoint;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.style.display = "none";
       
-      if (!downloadUrlResponse.ok) {
-        const errorData = await downloadUrlResponse.json().catch(() => ({ error: 'Unknown error' }));
-        console.error("Failed to get download URL:", errorData.error);
-        throw new Error(errorData.error || `Failed to get download URL: ${downloadUrlResponse.status}`);
-      }
-      
-      const { ok, downloadUrl, error } = await downloadUrlResponse.json();
-      
-      if (!ok || !downloadUrl) {
-        throw new Error(error || "Download URL not available");
-      }
-      
-      console.log(`[Recording Download Client] Got download URL from server`);
-      
-      // Step 2: Fetch the file directly from the signed URL (works with cross-origin URLs)
-      const fileResponse = await fetch(downloadUrl, {
-        method: 'GET',
-        redirect: 'follow',
-      });
-      
-      if (!fileResponse.ok) {
-        throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
-      }
-      
-      const blob = await fileResponse.blob();
-      console.log(`[Recording Download Client] Received blob: ${blob.size} bytes, type: ${blob.type}`);
-      
-      // Check if we got actual video data
-      if (blob.size < 1000) {
-        throw new Error(`File too small: ${blob.size} bytes - may be an error response`);
-      }
-      
-      // Generate filename
-      const dateStr = new Date(startedAt).toISOString().split('T')[0];
-      const timeStr = new Date(startedAt).toTimeString().split(' ')[0].replace(/:/g, '-');
-      const fileName = `recording-${displayName}-${dateStr}-${timeStr}.mp4`;
-      
-      // Create blob URL and trigger download (same pattern as file downloads)
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = fileName;
-      link.style.display = 'none';
+      // Append to body, click, then remove
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Clean up blob URL after download
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-      }, 100);
-      
-      console.log(`[Recording Download Client] ✓ Download started for ${fileName}`);
-      
     } catch (err) {
-      console.error("Error downloading recording:", err);
-      alert(`Failed to download recording: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error("Error opening recording:", err);
+      alert(`Failed to open recording: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   }
 
@@ -1380,7 +1330,7 @@ export default function DashboardPage() {
                           <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                             {recording.url ? (
                               <button
-                                onClick={() => handleRecordingDownload(recording.url!, recording.id, recording.meeting_id, recording.display_name, recording.started_at)}
+                                onClick={() => handleRecordingDownload(recording.url!, recording.id, recording.meeting_id)}
                                 className="rounded-md p-2 text-slate-400 transition hover:bg-slate-700 hover:text-blue-400"
                                 title="Download Recording"
                               >

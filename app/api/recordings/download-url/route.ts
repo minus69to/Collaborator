@@ -81,15 +81,25 @@ export async function GET(request: NextRequest) {
           assetId: hmsRecording.assetId,
           storedAssetId: recording.hms_asset_id,
           urlPresent: !!hmsRecording.url,
+          filePath: hmsRecording.filePath,
         });
         
-        // Use the asset ID from 100ms (always fresh)
+        // Use the asset ID from 100ms (always fresh) - this should be the video asset
         assetIdToUse = hmsRecording.assetId || recording.hms_asset_id;
         
         // Try to get URL from recording asset (prefer fresh asset ID from 100ms)
         if (assetIdToUse) {
-          console.log(`[Download URL] Attempting to get download URL for asset ${assetIdToUse}...`);
+          console.log(`[Download URL] Attempting to get download URL for video asset ${assetIdToUse}...`);
           downloadUrl = await getHMSRecordingAssetDownloadUrl(assetIdToUse);
+          if (downloadUrl) {
+            console.log(`[Download URL] ✓ Got download URL from asset API (length: ${downloadUrl.length})`);
+            // Log first 100 chars to see if it's a video URL
+            console.log(`[Download URL] URL preview: ${downloadUrl.substring(0, 100)}...`);
+          } else {
+            console.log(`[Download URL] ✗ Could not get download URL from asset API`);
+          }
+        } else {
+          console.log(`[Download URL] ⚠ No asset ID available (neither from 100ms nor stored)`);
         }
         
         // Fallback to URL from recording metadata
@@ -108,6 +118,24 @@ export async function GET(request: NextRequest) {
         if (!downloadUrl && recording.hms_asset_id) {
           console.log(`[Download URL] Fallback: Using stored asset ID ${recording.hms_asset_id}...`);
           downloadUrl = await getHMSRecordingAssetDownloadUrl(recording.hms_asset_id);
+          if (downloadUrl) {
+            console.log(`[Download URL] ✓ Got download URL from fallback asset`);
+          }
+        }
+      }
+      
+      // Update database with the correct video asset ID if we found a new one (outside try-catch)
+      if (assetIdToUse && assetIdToUse !== recording.hms_asset_id && downloadUrl) {
+        console.log(`[Download URL] Updating database with correct video asset ID: ${assetIdToUse}`);
+        try {
+          await supabase
+            .from("meeting_recordings")
+            .update({ hms_asset_id: assetIdToUse })
+            .eq("id", recordingId)
+            .eq("meeting_id", meetingId);
+        } catch (dbError) {
+          console.error(`[Download URL] Failed to update asset ID in database:`, dbError);
+          // Don't fail the request if DB update fails
         }
       }
     } else if (recording.hms_asset_id) {
@@ -120,19 +148,16 @@ export async function GET(request: NextRequest) {
       return Response.json(
         {
           ok: false,
-          error: "Download URL not available. The recording may still be processing or unavailable.",
+          error: "Streaming URL not available. The recording may still be processing or unavailable.",
         },
         { status: 404 }
       );
     }
 
-    console.log(`[Download URL] ✓ Returning download URL for recording ${recordingId}`);
+    console.log(`[Download URL] ✓ Redirecting to streaming URL for recording ${recordingId}`);
 
-    return Response.json({
-      ok: true,
-      downloadUrl: downloadUrl,
-      expiresAt: null, // Pre-signed URLs typically expire, but we don't know the exact time
-    });
+    // Redirect the client directly to the signed asset URL so it can open in a new tab.
+    return Response.redirect(downloadUrl, 302);
   } catch (error) {
     return toErrorResponse(error);
   }
