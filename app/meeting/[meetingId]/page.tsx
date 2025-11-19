@@ -397,11 +397,11 @@ function MeetingRoom() {
         hasVideoTrack: hasVideo,
         hasAudioTrack: hasAudio,
         videoTrackType: typeof videoTrack,
-        videoTrackKeys: videoTrack ? Object.keys(videoTrack) : null,
-        videoTrackId: videoTrack?.id,
-        videoTrackEnabled: videoTrack?.enabled,
-        videoTrackNativeTrack: !!videoTrack?.nativeTrack,
-        audioTrackEnabled: audioTrack?.enabled,
+        videoTrackKeys: videoTrack && typeof videoTrack === 'object' ? Object.keys(videoTrack) : null,
+        videoTrackId: videoTrack && typeof videoTrack === 'object' ? (videoTrack as any)?.id : null,
+        videoTrackEnabled: videoTrack && typeof videoTrack === 'object' ? (videoTrack as any)?.enabled : null,
+        videoTrackNativeTrack: videoTrack && typeof videoTrack === 'object' ? !!(videoTrack as any)?.nativeTrack : null,
+        audioTrackEnabled: audioTrack && typeof audioTrack === 'object' ? (audioTrack as any)?.enabled : null,
         isLocal: peer.id === localPeer?.id,
       });
       

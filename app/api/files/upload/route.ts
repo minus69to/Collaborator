@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       .insert({
         meeting_id: meetingId,
         user_id: user.id,
-        display_name: displayName.trim(),
+        display_name: displayName?.trim() || '',
         file_name: file.name,
         file_path: storagePath,
         file_size: file.size,
